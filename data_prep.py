@@ -403,7 +403,8 @@ def predict_plot(df):
 # Main execution
 if __name__ == "__main__":
     # Load or receive DataFrame from databento.py
-    df = json_to_df('stock_data\es-6month-1min.json')  # Assuming json_to_df is imported from databento.py
+    #df = json_to_df('stock_data\es-6month-1min.json')  
+    df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
     df_filtered = filter_prepare_and_plot_data(df)
     train_datasets,test_datasets = create_list_datasets(df_filtered)
 
@@ -420,13 +421,11 @@ if __name__ == "__main__":
     # print(f"Number of training days: {num_train_days}")
     # print(f"Number of testing days: {num_test_days}")
 
-    # Plot the train and test series on a new figure with subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 16))
-
-    # Plot train data
-    dataset_plot(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
-    dataset_plot(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
-    plt.show()
+    # # Plot the train and test series on a new figure with subplots
+    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 16))
+    # dataset_plot(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
+    # dataset_plot(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
+    # plt.show()
 
 
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
