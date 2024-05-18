@@ -22,6 +22,11 @@ sys.path.append(os.path.abspath('./lag-llama'))
 from lag_llama.gluon.estimator import LagLlamaEstimator
 
 
+context_length = 950  # 600 minutes (10 hours)
+prediction_length = 360  # 360 minutes (6 hours)
+num_samples = 1  # Number of sample paths to generate
+
+
 def initialize():
     #git_executable = r"C:\Program Files\Git\cmd\git.exe"  # Update this path based on your installation
     subprocess.run([git_executable, "clone", "https://github.com/time-series-foundation-models/lag-llama/"])
@@ -118,9 +123,7 @@ def prepare_df():
     
 
 def forcast(datasets):
-    context_length = 950  # 600 minutes (10 hours)
-    prediction_length = 360  # 360 minutes (6 hours)
-    num_samples = 1  # Number of sample paths to generate
+   
     device = "cuda"  # Use GPU if available
     #device = "CPU"  # Use GPU if available
     #TSS is the time series. 
@@ -131,6 +134,7 @@ def forcast(datasets):
         context_length=context_length,
         device=device
     )
+    print('Finished forecast prediction')
     return forecasts, tss
 
 def plot_forcast():
@@ -162,9 +166,10 @@ def plot_forcast():
     plt.legend()
     plt.show()
 
-def finetune():
+def finetune(datasets):
+    print('Starting fine tuning')
     # Fine-tuning
-
+    device = "cuda"  # Use GPU if available
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
@@ -193,129 +198,57 @@ def finetune():
 
             batch_size=64,
             num_parallel_samples=num_samples,
-            trainer_kwargs = {"max_epochs": 500,}, # <- lightning trainer arguments
+            trainer_kwargs = {"max_epochs": 2,}, # <- lightning trainer arguments
         )
 
     predictor = estimator.train(datasets.train, cache_data=True, shuffle_buffer_length=7000)
-
+    print('Done fine tuning')
     forecast_it, ts_it = make_evaluation_predictions(
             dataset=datasets.test,
             predictor=predictor,
-            num_samples=5
+            num_samples=num_samples
         )
 
+    print('Startin forecasting')
     forecasts = list(tqdm(forecast_it, total=len(datasets), desc="Forecasting batches"))
-
+    print('Done forecasting')
     tss = list(tqdm(ts_it, total=len(datasets), desc="Ground truth"))
 
-    plt.figure(figsize=(20, 15))
-    date_formatter = mdates.DateFormatter('%H:%M')  # Format to display hours and minutes
-    plt.rcParams.update({'font.size': 15})
-
-    # Define the window size for the moving average
-    window_size = 30  # Adjust this value as needed for smoothing
-
-    # Iterate through the first 9 series, and plot the predicted samples
-    for idx, (forecast, ts) in islice(enumerate(zip(forecasts, tss)), 9):
-        ax = plt.subplot(3, 3, idx+1)
-
-        # Plot the ground truth
-        ground_truth = ts[-4 * prediction_length:].to_timestamp()
-        plt.plot(ground_truth, label="target")
-
-        # Create a new index for the forecast ending at the same point as the ground truth
-        forecast_end_idx = ground_truth.index[-1]
-        forecast_start_idx = forecast_end_idx - pd.Timedelta(minutes=len(forecast.mean) - 1)
-        forecast_index = pd.date_range(start=forecast_start_idx, end=forecast_end_idx, freq='T')
-
-        # Convert forecast to Pandas Series with the new index
-        forecast_series = pd.Series(forecast.mean, index=forecast_index)
-
-        # Apply moving average to the forecast
-        smoothed_forecast = forecast_series.rolling(window=window_size, min_periods=1).mean()
-
-        # Right-pad the smoothed forecast to match the length of the ground truth
-        full_index = ground_truth.index.union(smoothed_forecast.index)
-        smoothed_forecast = smoothed_forecast.reindex(full_index)
-
-        # Plot the smoothed forecast
-        plt.plot(smoothed_forecast, color='g', label="smoothed forecast")
-
-        # Print the last time point for both ground truth and prediction
-        print(f"Last time point for ground truth (series {idx}): {ground_truth.index[-1]}")
-        print(f"Last time point for prediction (series {idx}): {smoothed_forecast.index[-1]}")
-
-        # Format x-axis
-        plt.xticks(rotation=60)
-        ax.xaxis.set_major_formatter(date_formatter)
-        ax.set_title(forecast.item_id)
-
-        # Autoscale based on the ground truth
-        ax.relim()  # Recompute the limits based on the data
-        ax.autoscale_view()  # Autoscale the view to the new limits
-
-        # Set x-axis limits to match the range of the ground truth data
-        ax.set_xlim(full_index.min(), full_index.max())
-
-    plt.gcf().tight_layout()
-    plt.legend()
-    plt.show()
+   
 
     evaluator = Evaluator()
     agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
 
     print(agg_metrics)
-
-    # Define the path where you want to save the fine-tuned checkpoint
-    fine_tuned_checkpoint_path = "fine_tuned_lag_llama.ckpt"
-    destination_dir = "fine_tune_checkpoints/"
-    destination_path = os.path.join(destination_dir, "fine_tuned_lag_llama.ckpt")
-
-    # Create the destination directory if it doesn't exist
-    os.makedirs(destination_dir, exist_ok=True)
-
-    # Assuming `estimator` has a method to get the underlying model
-    # Create the lightning module from the estimator
-    lightning_module = estimator.create_lightning_module()
-
-    # Save the fine-tuned model's state dictionary
-    torch.save(lightning_module.state_dict(), fine_tuned_checkpoint_path)
-
-    # Copy the fine-tuned checkpoint file to the destination directory
-    shutil.copy(fine_tuned_checkpoint_path, destination_path)
-
-    print(f"Fine-tuned checkpoint saved to {destination_path}")
-
-    # Assuming forecasts and tss are already defined
-    # Get the first forecast and time series
-    first_forecast, first_ts = forecasts[0], tss[0]
-
-    # Convert the forecast to a pandas DataFrame
-    forecast_df = pd.DataFrame({
-        'timestamp': first_ts[-6 * prediction_length:].to_timestamp().index,
-        'predicted_value': first_forecast.mean
-    })
-
-    # Display the DataFrame
-    print(forecast_df.head(10))  # Display the first 10 rows for brevity
-
+    return forecasts,tss
 
 
 
 if __name__ == "__main__":
     #initialize()
+   forecasts = None
+   tss = None
+
    with open('pickle/datasets_imported_stock_data.pkl', 'rb') as f:
     datasets = pickle.load(f)
        
    
 
+    # ####Zero shot
+    # forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
+    # # Save the forecasts and tss to a pickle file in a folder called pickle
+    # os.makedirs('pickle', exist_ok=True)
+    # with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
+    #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+    #     print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
   
-    forecasts, tss = forcast(datasets)  #executes prediction lag-llama model 
 
 
-    # Save the forecasts and tss to a pickle file in a folder called pickle
-    os.makedirs('pickle', exist_ok=True)
-    with open('pickle/forecasts_tss.pkl', 'wb') as f:
-        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-        print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
+
+    forecasts,tss = finetune(datasets)
+    with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
+            pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+            print("Fine tuned forecasts  to 'pickle/tuned_forecasts_tss.pkl'")
+
+
   
