@@ -9,14 +9,21 @@ import matplotlib.dates as mdates
 from datetime import datetime, time
 import pytz
 import matplotlib
-#matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
-matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
+matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+#matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 from gluonts.dataset.common import TrainDatasets, MetaData, CategoricalFeatureInfo
 import os
 import pickle
 from scipy.spatial.distance import euclidean
+import pandas as pd
+import json
+import pytz
+from datetime import datetime, time
+from concurrent.futures import ProcessPoolExecutor
+import os
 
-prediction_length = 32
+
+prediction_length = 360
 
 # Function to filter, prepare data, and plot
 def filter_prepare_and_plot_data(df):
@@ -207,13 +214,10 @@ def create_metadata():
     with open(path / "metadata.json", "w") as f:
         json.dump(metadata, f)
 
-
-def json_to_df(file_path):
-    # Path to your JSON file
-    #file_path = '/content/stock_data/es-6month-1min.json'   #for colab
-    #file_path = '/content/stock_data/es-10yr-1min.json'   #for colab
-    #file_path = 'stock_data/es-10yr-1min.json'   #for locla 
-    #file_path = 'website/stock_data/spy-1yr-1min.json'
+def json_to_df(file_path ):
+    verbose=True
+    if verbose:
+        print(f"Reading JSON file from: {file_path}")
     
     # List to hold all JSON objects
     data = []
@@ -224,6 +228,9 @@ def json_to_df(file_path):
             if line.strip():  # Ensure the line is not empty
                 json_object = json.loads(line)
                 data.append(json_object)
+    
+    if verbose:
+        print(f"Loaded {len(data)} records from the JSON file.")
 
     # Convert to DataFrame
     df = pd.DataFrame(data)
@@ -241,6 +248,9 @@ def json_to_df(file_path):
     # Filter for symbols containing 'ES'
     df = df[df['symbol'].str.contains('ES')]
 
+    if verbose:
+        print(f"Filtered DataFrame to {len(df)} records containing 'ES' symbol.")
+
     # Convert 'open' and 'close' to numeric
     df['open'] = pd.to_numeric(df['open'], errors='coerce')
     df['close'] = pd.to_numeric(df['close'], errors='coerce')
@@ -252,15 +262,21 @@ def json_to_df(file_path):
     filtered_df = pd.DataFrame()
 
     # Loop through each day
-    for date, group in df.groupby('date'):
+    total_days = df['date'].nunique()
+    for i, (date, group) in enumerate(df.groupby('date'), 1):
         # Identify the first occurring symbol for the day
         first_symbol = group.sort_values(by='ts_event').iloc[0]['symbol']
         # Filter the group to keep only rows with the first occurring symbol
         filtered_group = group[group['symbol'] == first_symbol]
         # Append the filtered group to the filtered_df
         filtered_df = pd.concat([filtered_df, filtered_group])
-
+        # Print progress
+        print(f"Processed {i}/{total_days} days")
+    
     df = filtered_df.reset_index(drop=True)
+
+    if verbose:
+        print(f"Filtered DataFrame to {len(df)} records after keeping only the first occurring symbol for each day.")
 
     # Identify the closing price at 4 PM EST for each day
     df['close_4pm'] = df[df['time'] == time(16, 0)]['price']
@@ -283,15 +299,12 @@ def json_to_df(file_path):
     # Drop any day groups that don't have at least 800 rows
     valid_dates = df.groupby('date').filter(lambda x: len(x) >= 800).date.unique()
     df = df[df['date'].isin(valid_dates)]
-    ###  done for DF
-    print('JSON to DF:')
-    print(df)
 
-    # Report the number of unique days in the DataFrame
-    num_days = df['date'].nunique()
-    print(f'The dataset contains data for {num_days} unique days.')
+    if verbose:
+        print(f"Final DataFrame contains {len(df)} records after dropping days with insufficient data.")
+        print(f"The dataset contains data for {df['date'].nunique()} unique days.")
+
     return df
-
 #########  PLotting    ######
 
 def df_plot(df):
@@ -319,7 +332,7 @@ def df_plot(df):
     plt.title('Normalized Price Time Series for Each Day')
     plt.xlabel('Time of Day')
     plt.ylabel('Normalized Price')
-    plt.legend(title='Date')
+    #plt.legend(title='Date')
     plt.show()
 
 
@@ -402,11 +415,16 @@ def predict_plot(df):
 
 # Main execution
 if __name__ == "__main__":
+    # Define the file path variable
+    #json_file_path = 'stock_data/es-6month-1min.json'
+    json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+
+
     # Load or receive DataFrame from databento.py
-    #df = json_to_df('stock_data\es-6month-1min.json')  
-    df = json_to_df('stock_data\es-6month-1min.json')  # Assuming json_to_df is imported from databento.py
+    df = json_to_df(json_file_path)  
+    #df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
     df_filtered = filter_prepare_and_plot_data(df)
-    train_datasets,test_datasets = create_list_datasets(df_filtered)
+    train_datasets, test_datasets = create_list_datasets(df_filtered)
 
     # Create and save metadata
     create_metadata()
@@ -427,15 +445,13 @@ if __name__ == "__main__":
     # dataset_plot(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
     # plt.show()
 
-
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
-
-  
 
     # Save the datasets to a pickle file in a folder called pickle
     os.makedirs('pickle', exist_ok=True)
-    with open('pickle/datasets_imported_stock_data.pkl', 'wb') as f:
+    pickle_file_name = os.path.splitext(os.path.basename(json_file_path))[0] + '.pkl'
+    with open(f'pickle/{pickle_file_name}', 'wb') as f:
         pickle.dump(datasets, f)
-        print("Datasets have been saved to 'pickle/datasets_imported_stock_data.pkl'")
-    df.to_pickle("pickle/df_imported_stock_data.pkl")
-    print("DataFrame has been saved to 'pickle/df_imported_stock_data.pkl'")
+        print(f"Datasets have been saved to 'pickle/{pickle_file_name}'")
+    df.to_pickle(f"pickle/{pickle_file_name}")
+    print(f"DataFrame has been saved to 'pickle/df_{pickle_file_name}'")
