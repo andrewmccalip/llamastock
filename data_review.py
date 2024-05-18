@@ -25,14 +25,21 @@ def debug_forecasts_tss(forecasts, tss):
         print(f"  Forecast length: {len(forecast.mean)}")
         print(f"  Time series length: {len(ts)}")
 
-def plot_time_series(forecasts, tss, context_length, prediction_length):
+def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples):
     plt.figure(figsize=(20, 15))
     date_formatter = mdates.DateFormatter('%H:%M')  # Format to display hours and minutes
     plt.rcParams.update({'font.size': 15})
 
-    # Iterate through the first 9 series, and plot the predicted samples
-    for idx, (forecast, ts) in islice(enumerate(zip(forecasts, tss)), 9):
-        ax = plt.subplot(3, 3, idx+1)
+    # Ensure N does not exceed the number of available series
+    max_samples = min(max_samples, len(forecasts), len(tss))
+
+    # Calculate the number of rows and columns for the subplots
+    n_cols = 3
+    n_rows = (max_samples + n_cols - 1) // n_cols  # This ensures enough rows to fit N subplots
+
+    # Iterate through the first N series, and plot the predicted samples
+    for idx, (forecast, ts) in islice(enumerate(zip(forecasts, tss)), max_samples):
+        ax = plt.subplot(n_rows, n_cols, idx + 1)  # Adjust subplot grid size based on N
 
         # Convert PeriodIndex to Timestamp
         ts = ts.to_timestamp()
@@ -97,8 +104,9 @@ def plot_time_series(forecasts, tss, context_length, prediction_length):
         ax.xaxis.set_major_formatter(date_formatter)
         ax.set_title(forecast.item_id)
 
-        # Add legend
-        ax.legend()
+        # Add legend only to the first subplot
+        if idx == 0:
+            ax.legend()
 
     plt.gcf().tight_layout()
     plt.show()
@@ -114,5 +122,5 @@ if __name__ == "__main__":
       
     # #fine tuned predictions
     forecasts, tss = load_forecasts('pickle/tuned_forecasts_tss.pkl')
-    plot_time_series(forecasts, tss, context_length=960, prediction_length=360)
+    plot_time_series(forecasts, tss, context_length=960, prediction_length=360,max_samples=6)
     print('done')
