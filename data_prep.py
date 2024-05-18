@@ -332,7 +332,7 @@ def df_plot(df):
     plt.title('Normalized Price Time Series for Each Day')
     plt.xlabel('Time of Day')
     plt.ylabel('Normalized Price')
-    plt.legend(title='Date')
+    #plt.legend(title='Date')
     plt.show()
 
 
@@ -416,8 +416,10 @@ def predict_plot(df):
 # Main execution
 if __name__ == "__main__":
     # Define the file path variable
-    json_file_path = 'stock_data/es-6month-1min.json'
-    
+    #json_file_path = 'stock_data/es-6month-1min.json'
+    json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+
+
     # Load or receive DataFrame from databento.py
     df = json_to_df(json_file_path)  
     #df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
