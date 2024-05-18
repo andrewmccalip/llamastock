@@ -16,7 +16,8 @@ import zipfile
 import pickle
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-import h5py
+from sklearn.model_selection import train_test_split
+from gluonts.dataset.common import TrainDatasets
 #matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 import warnings
@@ -171,6 +172,13 @@ def plot_forcast():
     plt.legend()
     plt.show()
 
+
+
+def split_train_validation(datasets, validation_size=0.2):
+    train_data, val_data = train_test_split(datasets.train, test_size=validation_size, random_state=42)
+    return TrainDatasets(metadata=datasets.metadata, train=train_data, val=val_data, test=datasets.test)
+
+
 def finetune(datasets):
     print('Starting fine tuning')
     # Load the model checkpoint
@@ -204,16 +212,22 @@ def finetune(datasets):
 
             batch_size=64,
             num_parallel_samples=num_samples,
-            trainer_kwargs = {"max_epochs": 100,}, # <- lightning trainer arguments
+            trainer_kwargs = {
+                "max_epochs": 100,
+                "val_check_interval": 1.0,  # Validate every epoch
+                "callbacks": [ModelCheckpoint(monitor="val_loss")],  # Save the best model based on validation loss
+            }, # <- lightning trainer arguments
         )
 
     # Print the number of series in the train and test datasets
     print(f"Number of series in the training dataset: {len(datasets.train)}")
+    if hasattr(datasets, 'val'):
+        print(f"Number of series in the validation dataset: {len(datasets.val)}")
     print(f"Number of series in the testing dataset: {len(datasets.test)}")
 
     try:
         # Train the estimator on the training dataset
-        predictor = estimator.train(datasets.train, cache_data=True, shuffle_buffer_length=7000)
+        predictor = estimator.train(datasets.train, validation_data=datasets.val, cache_data=True, shuffle_buffer_length=7000)
     except Exception as e:
         # Print error and data entries if training fails
         print(f"Error during training: {e}")
@@ -400,7 +414,7 @@ if __name__ == "__main__":
 
     ####Step 1: load the stock data from saved pickle. This is the ES 1min canlde data 
     datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
-    
+    datasets = split_train_validation(datasets)   # Split the training dataset into training and validation sets
 
     ###step 1.1 Double check file structure by doing a zero shot prediction on base weights 
     ####Zero shot
