@@ -2,6 +2,8 @@ import pandas as pd
 import json
 from datetime import datetime, time
 import pytz
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
@@ -106,6 +108,7 @@ def plot_every_day(df):
     plt.figure(figsize=(15, 8))
     colors = plt.cm.viridis(np.linspace(0, 1, len(df['date'].unique())))
 
+    print('starting to plot')
     # Create a reference date for all times to be plotted on the same x-axis
     reference_date = datetime(2000, 1, 1)  # Arbitrary non-leap year date
     max_days_to_plot = 5000  # Define the maximum number of days to plot
@@ -215,8 +218,9 @@ def predict_plot(df):
 
 
 if __name__ == "__main__":
-    df = json_to_df()  #takes the flat json from databento and converts to df 
-    print(df)
+    df = json_to_df('stock_data/es-6month-1min.json')  #takes the flat json from databento and converts to df 
+    #print(df)
+    
     #plot_every_day(df)
   
     #predict_plot(df)  #run the euclid prediction 

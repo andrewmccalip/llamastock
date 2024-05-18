@@ -1,0 +1,1 @@
+{"freq": "T", "prediction_length": 32, "feat_static_cat": [{"name": "feat_static_cat", "cardinality": "1"}], "feat_static_real": [], "feat_dynamic_real": [], "feat_dynamic_cat": [], "train": "train", "test": "test"}

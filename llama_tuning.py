@@ -183,13 +183,15 @@ def create_train_datasets(train_dataset, test_dataset, freq, prediction_length):
     
     return datasets
 
-# Function to create metadata
 def create_metadata():
     freq = "T"
     path = Path("data")
     
+    # Ensure the directory exists
+    path.mkdir(parents=True, exist_ok=True)
+    
     metadata = {
-            "freq": freq,
+        "freq": freq,
         "prediction_length": prediction_length,
         "feat_static_cat": [
             {
