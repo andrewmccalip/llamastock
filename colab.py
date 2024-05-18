@@ -16,7 +16,7 @@ from data_prep import *
 import zipfile
 import pickle
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint,EarlyStopping
 from sklearn.model_selection import train_test_split
 from gluonts.dataset.common import TrainDatasets
 import logging
@@ -171,7 +171,7 @@ def split_train_validation(datasets, validation_ratio=0.2):
 
 def finetune(datasets, val_data,max_epochs):
     print('Starting fine tuning')
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device="cuda"
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
@@ -188,47 +188,49 @@ def finetune(datasets, val_data,max_epochs):
         n_embd_per_head=estimator_args["n_embd_per_head"],
         n_head=estimator_args["n_head"],
         time_feat=estimator_args["time_feat"],
-        trainer_kwargs={"max_epochs": max_epochs},
+        trainer_kwargs={"max_epochs": 100},
     )
 
-    # Print verbose information about the number of days in the datasets
-    train_dates = set()
-    for entry in datasets.train:
-        start_date = entry['start']
-        if isinstance(start_date, pd.Period):
-            start_date = start_date.to_timestamp()
-        start_date = pd.to_datetime(start_date).date()
-        train_dates.add(start_date)
-    num_train_days = len(train_dates)
-    print(f"Number of unique days in the training dataset: {num_train_days}")
+    # Callbacks
+    checkpoint_callback = ModelCheckpoint(
+        monitor='val_loss',
+        dirpath='checkpoints/',
+        filename='best-checkpoint',
+        save_top_k=1,
+        mode='min'
+    )
 
-    val_dates = set()
-    for entry in val_data:
-        start_date = entry['start']
-        if isinstance(start_date, pd.Period):
-            start_date = start_date.to_timestamp()
-        start_date = pd.to_datetime(start_date).date()
-        val_dates.add(start_date)
-    num_val_days = len(val_dates)
-    print(f"Number of unique days in the validation dataset: {num_val_days}")
+    early_stopping_callback = EarlyStopping(
+        monitor='val_loss',
+        patience=10,
+        mode='min'
+    )
 
-    test_dates = set()
-    for entry in datasets.test:
-        start_date = entry['start']
-        if isinstance(start_date, pd.Period):
-            start_date = start_date.to_timestamp()
-        start_date = pd.to_datetime(start_date).date()
-        test_dates.add(start_date)
-    num_test_days = len(test_dates)
-    print(f"Number of unique days in the testing dataset: {num_test_days}")
+
+    # Trainer
+    trainer = Trainer(
+        max_epochs=100,
+        callbacks=[checkpoint_callback, early_stopping_callback],
+        log_every_n_steps=1,
+        val_check_interval=0.5  # Validate twice per epoch
+    )
+
+    # Training
     predictor = estimator.train(
         training_data=datasets.train,
         validation_data=val_data,
         cache_data=True,
-        shuffle_buffer_length=7000
+        shuffle_buffer_length=7000,
+        num_workers=4,
+        batch_size=64,
+        epochs=max_epochs,
+        learning_rate=1e-4,
+        early_stopping=True,
+        checkpoint_callback=checkpoint_callback
     )
 
     print('Done fine tuning')
+    return predictor
 
     # # Make evaluation predictions on the test dataset
     # forecast_it, ts_it = make_evaluation_predictions(
