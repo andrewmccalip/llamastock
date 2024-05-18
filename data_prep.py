@@ -186,7 +186,20 @@ def dataset_plot(dataset, ax, title):
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right")  # Rotate x-axis labels for better readability
 
 # Function to create training datasets
-def create_train_datasets(train_dataset, test_dataset, freq, prediction_length):
+def create_train_datasets(train_dataset, val_dataset, test_dataset, freq, prediction_length):
+    """
+    Create TrainDatasets object including training, validation, and testing datasets.
+
+    Args:
+        train_dataset (ListDataset): The training dataset.
+        val_dataset (ListDataset): The validation dataset.
+        test_dataset (ListDataset): The testing dataset.
+        freq (str): The frequency of the time series data.
+        prediction_length (int): The prediction length.
+
+    Returns:
+        TrainDatasets: The TrainDatasets object containing metadata and datasets.
+    """
     metadata = MetaData(
         freq=freq,
         feat_static_cat=[CategoricalFeatureInfo(name='feat_static_cat_0', cardinality='1')],
@@ -199,7 +212,8 @@ def create_train_datasets(train_dataset, test_dataset, freq, prediction_length):
     datasets = TrainDatasets(
         metadata=metadata,
         train=train_dataset,
-        test=test_dataset
+        test=test_dataset,
+        
     )
     
     return datasets
@@ -428,22 +442,18 @@ def predict_plot(df):
 
 # Main execution
 if __name__ == "__main__":
-    
     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+
     # Define the file path variable
     json_file_path = 'stock_data/es-6month-1min.json'
-    #json_file_path = 'stock_data_ignored\es-10yr-1min.json'
-
 
     # Load or receive DataFrame from databento.py
-    df = json_to_df(json_file_path)  
-    #df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
+    df = json_to_df(json_file_path)
     df_filtered = filter_prepare_and_plot_data(df)
-    # Assuming df_filtered is already defined and contains the filtered data
+
+    # Create ListDataset objects for training, validation, and testing
     train_datasets, val_datasets, test_datasets = create_list_datasets(df_filtered)
 
-
-    # Create and save metadata
     # Create and save metadata
     create_metadata()
 
@@ -468,7 +478,7 @@ if __name__ == "__main__":
     plt.show()
 
     # Create training datasets
-    datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
+    datasets = create_train_datasets(train_datasets, val_datasets, test_datasets, freq="H", prediction_length=360)
 
     # Save the datasets to a pickle file
     os.makedirs('pickle', exist_ok=True)
