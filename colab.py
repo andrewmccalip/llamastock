@@ -19,7 +19,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 import h5py
 #matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
-
+import warnings
+warnings.filterwarnings("ignore", message="Using `json`-module for json-handling. Consider installing one of `orjson`, `ujson` to speed up serialization and deserialization.")
 
 # Add the cloned repository to the system path
 sys.path.append(os.path.abspath('./lag-llama'))
@@ -203,7 +204,7 @@ def finetune(datasets):
 
             batch_size=64,
             num_parallel_samples=num_samples,
-            trainer_kwargs = {"max_epochs": 2,}, # <- lightning trainer arguments
+            trainer_kwargs = {"max_epochs": 3,}, # <- lightning trainer arguments
         )
 
     # Print the number of series in the train and test datasets
@@ -244,7 +245,24 @@ def finetune(datasets):
     print(agg_metrics)
     return forecasts, tss
 
-def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, context_length, num_samples, device="cpu", batch_size=64, nonnegative_pred_samples=True):
+def load_checkpoint_and_forecast(checkpoint_path, datasets, prediction_length, context_length, num_samples, device, batch_size=64, nonnegative_pred_samples=True, max_series=None):
+    """
+    Load a checkpoint and make forecasts using the fine-tuned model.
+
+    Args:
+        checkpoint_path (str): Path to the model checkpoint.
+        datasets (TrainDatasets): The datasets containing train and test data.
+        prediction_length (int): The length of the prediction horizon.
+        context_length (int): The length of the context window.
+        num_samples (int): The number of sample paths to generate.
+        device (str): The device to use for computation (e.g., "cpu" or "cuda").
+        batch_size (int, optional): The batch size for prediction. Defaults to 64.
+        nonnegative_pred_samples (bool, optional): Whether to ensure nonnegative prediction samples. Defaults to True.
+        max_series (int, optional): Maximum number of series to forecast. Defaults to None (forecast all series).
+
+    Returns:
+        tuple: A tuple containing the forecasts and the ground truth time series.
+    """
     # Load the checkpoint
     ckpt = torch.load(checkpoint_path, map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
@@ -255,7 +273,7 @@ def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, co
         prediction_length=prediction_length,
         context_length=context_length,
 
-        # estimator args
+        # Estimator arguments
         input_size=estimator_args["input_size"],
         n_layer=estimator_args["n_layer"],
         n_embd_per_head=estimator_args["n_embd_per_head"],
@@ -265,7 +283,7 @@ def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, co
 
         nonnegative_pred_samples=nonnegative_pred_samples,
 
-        # linear positional encoding scaling
+        # Linear positional encoding scaling
         rope_scaling={
             "type": "linear",
             "factor": max(1.0, (context_length + prediction_length) / estimator_args["context_length"]),
@@ -280,20 +298,34 @@ def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, co
     transformation = estimator.create_transformation()
     predictor = estimator.create_predictor(transformation, lightning_module)
 
-    # Make predictions
+    # Limit the number of series to forecast if max_series is specified
+    if max_series is not None:
+        dataset = list(datasets.test)[:max_series]
+    else:
+        dataset = datasets.test
+
+    # Make evaluation predictions on the test dataset
     forecast_it, ts_it = make_evaluation_predictions(
         dataset=dataset,
         predictor=predictor,
         num_samples=num_samples
     )
+
+    print('Starting forecasting')
+
+    # Collect forecasts and ground truth time series
     forecasts = list(tqdm(forecast_it, total=len(dataset), desc="Forecasting batches"))
+    print('Done forecasting')
     tss = list(tqdm(ts_it, total=len(dataset), desc="Ground truth"))
-    
+
+    # Evaluate the forecasts
     evaluator = Evaluator()
     agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
 
+    # Print aggregated metrics
     print(agg_metrics)
     return forecasts, tss
+
 
 def load_pickle(zip_file_path, extract_to_path='pickle/'):
     """
@@ -366,43 +398,45 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
+    ####Step 1: load the stock data from saved pickle. This is the ES 1min canlde data 
     datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
     
 
+    ###step 1.1 Double check file structure by doing a zero shot prediction on base weights 
     ####Zero shot
-    forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
-    # Save the forecasts and tss to a pickle file in a folder called pickle
-    os.makedirs('pickle', exist_ok=True)
-    with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
-        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-        print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
-
-
-
-    # #fine tun model
-    # forecasts, tss = finetune(datasets)
-    # with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
-    #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-    #     print("Fine tuned forecasts have been saved to 'pickle/tuned_forecasts_tss.pkl'")
-
-    
-    
-    # #######Forcast with fine tuned model 
-    # # Path to the fine-tuned checkpoint
-    # checkpoint_path = 'lightning_logs/version_4/checkpoints/epoch=494-step=24750.ckpt'
-
-    # # Forecast using the fine-tuned checkpoint
-    # forecasts, tss = load_checkpoint_and_forecast(
-    #     checkpoint_path=checkpoint_path,
-    #     dataset=datasets['test'],
-    #     prediction_length=datasets['metadata']['prediction_length'],
-    #     context_length=context_length,
-    #     num_samples=num_samples,
-    #     device="cpu"  # Use CPU
-    # )
-
+    # forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
     # # Save the forecasts and tss to a pickle file in a folder called pickle
     # os.makedirs('pickle', exist_ok=True)
-    # with open('pickle/forecasts_tss.pkl', 'wb') as f:
+    # with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
     #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-    #     print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
+    #     print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
+
+
+
+    ### Step 2: fine tune model
+    #forecasts, tss = finetune(datasets)
+   
+
+    
+    
+    #######Steo 3:Forcast with fine tuned model 
+   # Path to the fine-tuned checkpoint
+    checkpoint_path = 'lightning_logs/version_12/checkpoints/epoch=0-step=50.ckpt'
+    max_series = 9  # Set the maximum number of series to forecast
+    forecasts, tss = load_checkpoint_and_forecast(
+        checkpoint_path=checkpoint_path,
+        datasets=datasets,  # Pass the datasets object directly
+        prediction_length=datasets.metadata.prediction_length,
+        context_length=context_length,
+        num_samples=num_samples,
+        device="cuda",  # Use
+         max_series=max_series  # Limit the number of series to forecast
+    )
+
+
+    #####Step 4: save the forecasts (time series) in their own picke for for further plotting in data_review.py 
+    # Save the forecasts and tss to a pickle file in a folder called pickle
+    os.makedirs('pickle', exist_ok=True)
+    with open('pickle/forecasts_tss.pkl', 'wb') as f:
+        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+        print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
