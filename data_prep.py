@@ -21,7 +21,7 @@ import pytz
 from datetime import datetime, time
 from concurrent.futures import ProcessPoolExecutor
 import os
-
+import h5py
 
 prediction_length = 360
 
@@ -446,12 +446,11 @@ if __name__ == "__main__":
     # plt.show()
 
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
+    import pickle
 
-       # Save the datasets to a pickle file in a folder called pickle
+    # Save the datasets to a pickle file
     os.makedirs('pickle', exist_ok=True)
     pickle_file_name = os.path.splitext(os.path.basename(json_file_path))[0] + '.pkl'
     with open(f'pickle/{pickle_file_name}', 'wb') as f:
-       pickle.dump(datasets, f)
-       print(f"Datasets have been saved to 'pickle/{pickle_file_name}'")
-    #df.to_pickle(f"pickle/{pickle_file_name}")
-    #print(f"DataFrame has been saved to 'pickle/df_{pickle_file_name}'")
+        pickle.dump(datasets, f, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"Datasets have been saved to 'pickle/{pickle_file_name}'")
