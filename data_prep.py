@@ -9,8 +9,8 @@ import matplotlib.dates as mdates
 from datetime import datetime, time
 import pytz
 import matplotlib
-matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
-from databento import json_to_df  # Assuming json_to_df is imported from databento.py
+#matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 from gluonts.dataset.common import TrainDatasets, MetaData, CategoricalFeatureInfo
 import os
 import pickle

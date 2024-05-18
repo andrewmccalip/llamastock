@@ -13,18 +13,17 @@ from gluonts.dataset.repository.datasets import get_dataset
 from gluonts.dataset.pandas import PandasDataset
 import pandas as pd
 import pickle
-from databento import *
 from data_prep import *
 
 # Add the cloned repository to the system path
-#sys.path.append(os.path.abspath('./lag-llama'))
+sys.path.append(os.path.abspath('./lag-llama'))
 
 # Import the LagLlamaEstimator after adding the repository to the path
-#from lag_llama.gluon.estimator import LagLlamaEstimator
+from lag_llama.gluon.estimator import LagLlamaEstimator
 
 
 def initialize():
-    git_executable = r"C:\Program Files\Git\cmd\git.exe"  # Update this path based on your installation
+    #git_executable = r"C:\Program Files\Git\cmd\git.exe"  # Update this path based on your installation
     subprocess.run([git_executable, "clone", "https://github.com/time-series-foundation-models/lag-llama/"])
     # Install requirements
     subprocess.run(["pip", "install", "-r", "lag-llama/requirements.txt"])
@@ -118,12 +117,12 @@ def prepare_df():
 
     
 
-def forcast():
+def forcast(datasets):
     context_length = 950  # 600 minutes (10 hours)
-    prediction_length = 150  # 360 minutes (6 hours)
+    prediction_length = 360  # 360 minutes (6 hours)
     num_samples = 1  # Number of sample paths to generate
-    #device = "cuda"  # Use GPU if available
-    device = "CPU"  # Use GPU if available
+    device = "cuda"  # Use GPU if available
+    #device = "CPU"  # Use GPU if available
     #TSS is the time series. 
     forecasts, tss = get_lag_llama_predictions(
         datasets.test,
@@ -311,7 +310,7 @@ if __name__ == "__main__":
    
 
   
-    forecasts, tss = forcast()  #executes prediction lag-llama model 
+    forecasts, tss = forcast(datasets)  #executes prediction lag-llama model 
 
 
     # Save the forecasts and tss to a pickle file in a folder called pickle
