@@ -12,9 +12,9 @@ from gluonts.evaluation import make_evaluation_predictions, Evaluator
 from gluonts.dataset.repository.datasets import get_dataset
 from gluonts.dataset.pandas import PandasDataset
 import pandas as pd
-
-from databento import json_to_df
-from llama_tuning import *
+import pickle
+from databento import *
+from data_prep import *
 
 # Add the cloned repository to the system path
 #sys.path.append(os.path.abspath('./lag-llama'))
@@ -83,16 +83,17 @@ def get_lag_llama_predictions(dataset, prediction_length, context_length, num_sa
     return forecasts, tss
 
 def prepare_df():
-    # Load or receive DataFrame from databento.py
-    df = json_to_df('stock_data/es-1month-1min.json')  # Assuming json_to_df is imported from databento.py
-    train_dataset, test_dataset = generate_data(df, prediction_length=32)
+        # Load or receive DataFrame from databento.py
+    df = json_to_df('stock_data\es-6month-1min.json')  # Assuming json_to_df is imported from databento.py
+    df_filtered = filter_prepare_and_plot_data(df)
+    train_datasets,test_datasets = create_list_datasets(df_filtered)
 
     # Create and save metadata
     create_metadata()
 
     # Convert datasets to DataFrame for reporting
-    train_df = dataset_to_dataframe(train_dataset)
-    test_df = dataset_to_dataframe(test_dataset)
+    train_df = dataset_to_dataframe(train_datasets)
+    test_df = dataset_to_dataframe(test_datasets)
 
     # Report the number of unique days in train and test datasets
     num_train_days = train_df['date'].dt.date.nunique()
@@ -103,23 +104,19 @@ def prepare_df():
     # Plot the train and test series on a new figure with subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 16))
 
-    # # Plot train data
-    # plot_normalized(train_dataset, ax1, title='Normalized Price Time Series for Training Data')
-    # plot_normalized(test_dataset, ax2, title='Normalized Price Time Series for Testing Data')
-    # plt.tight_layout()
-    # plt.show()
+    # Plot train data
+    plot_prices(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
 
-    datasets = create_train_datasets(train_dataset, test_dataset, freq="H", prediction_length=256)
+    # Plot test data
+    plot_prices(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
+
+    plt.tight_layout()
+    plt.show()
+
+    datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
 
 
-    import pickle
-
-    # Save the datasets to a pickle file in a folder called pickle
-    os.makedirs('pickle', exist_ok=True)
-    with open('pickle/datasets_imported_stock_data.pkl', 'wb') as f:
-        pickle.dump(datasets, f)
-    df.to_pickle("pickle/df_imported_stock_data.pkl")
-    return datasets, df
+    
 
 def forcast():
     context_length = 950  # 600 minutes (10 hours)
@@ -308,13 +305,18 @@ def finetune():
 
 if __name__ == "__main__":
     #initialize()
-    datasets, df = prepare_df()
-    
-    forecasts, tss = forcast()
+   with open('pickle/datasets_imported_stock_data.pkl', 'rb') as f:
+    datasets = pickle.load(f)
+       
+   
 
-    print('Forecasts:')
-    print(forecasts)
-    
+  
+    forecasts, tss = forcast()  #executes prediction lag-llama model 
 
 
-
+    # Save the forecasts and tss to a pickle file in a folder called pickle
+    os.makedirs('pickle', exist_ok=True)
+    with open('pickle/forecasts_tss.pkl', 'wb') as f:
+        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+        print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
+  
