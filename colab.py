@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 import subprocess
-
 import os
 import sys
 from itertools import islice
@@ -19,7 +17,6 @@ import pickle
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 import h5py
-
 #matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 
@@ -129,8 +126,6 @@ def prepare_df():
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
 
 
-    
-
 def forcast(datasets):
    
     device = "cuda"  # Use GPU if available
@@ -177,11 +172,12 @@ def plot_forcast():
 
 def finetune(datasets):
     print('Starting fine tuning')
-    # Fine-tuning
+    # Load the model checkpoint
     device = "cuda"  # Use GPU if available
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
+    # Initialize the LagLlamaEstimator with the loaded checkpoint and hyperparameters
     estimator = LagLlamaEstimator(
             ckpt_path="lag-llama/lag-llama.ckpt",
             prediction_length=prediction_length,
@@ -210,15 +206,23 @@ def finetune(datasets):
             trainer_kwargs = {"max_epochs": 2,}, # <- lightning trainer arguments
         )
 
+    # Print the number of series in the train and test datasets
+    print(f"Number of series in the training dataset: {len(datasets.train)}")
+    print(f"Number of series in the testing dataset: {len(datasets.test)}")
+
     try:
+        # Train the estimator on the training dataset
         predictor = estimator.train(datasets.train, cache_data=True, shuffle_buffer_length=7000)
     except Exception as e:
+        # Print error and data entries if training fails
         print(f"Error during training: {e}")
         for data_entry in datasets.train:
             print(data_entry)
         raise
 
     print('Done fine tuning')
+
+    # Make evaluation predictions on the test dataset
     forecast_it, ts_it = make_evaluation_predictions(
             dataset=datasets.test,
             predictor=predictor,
@@ -226,17 +230,19 @@ def finetune(datasets):
         )
 
     print('Starting forecasting')
+
+    # Collect forecasts and ground truth time series
     forecasts = list(tqdm(forecast_it, total=len(datasets.test), desc="Forecasting batches"))
     print('Done forecasting')
     tss = list(tqdm(ts_it, total=len(datasets.test), desc="Ground truth"))
 
+    # Evaluate the forecasts
     evaluator = Evaluator()
     agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
 
+    # Print aggregated metrics
     print(agg_metrics)
     return forecasts, tss
-
-
 
 def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, context_length, num_samples, device="cpu", batch_size=64, nonnegative_pred_samples=True):
     # Load the checkpoint
@@ -289,71 +295,114 @@ def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, co
     print(agg_metrics)
     return forecasts, tss
 
-if __name__ == "__main__":
-    #initialize()
-    forecasts = None
-    tss = None
+def load_pickle(zip_file_path, extract_to_path='pickle/'):
+    """
+    Unzips a pickle file and loads its contents.
 
-    # # Path to the zip file
-    # zip_file_path = 'pickle/es-10yr-1min.zip'
-    zip_file_path = 'pickle/es-6month-1min.zip'
-    extract_to_path = 'pickle/'
+    Args:
+        zip_file_path (str): Path to the zip file containing the pickle file.
+        extract_to_path (str): Directory to extract the zip file contents to.
 
-    import pickle
-    import zipfile
+    Returns:
+        datasets: The loaded datasets from the pickle file.
+        file_size (int): Size of the loaded pickle file in bytes.
+    """
 
     # Unzip the pickle file
     with zipfile.ZipFile(zip_file_path, 'r') as zipf:
         zipf.extractall(extract_to_path)
+        # Get the name of the unzipped file
+        unzipped_file_name = zipf.namelist()[0]
     print(f"Unzipped {zip_file_path} to {extract_to_path}")
 
     # Load the pickle file
-    pickle_file_path = 'pickle/es-6month-1min.pkl'
+    pickle_file_path = os.path.join(extract_to_path, unzipped_file_name)
     with open(pickle_file_path, 'rb') as f:
         datasets = pickle.load(f)
         file_size = os.path.getsize(pickle_file_path)
         print(f"Size of the loaded file: {file_size} bytes")
 
+    # Verbose information about the dataset
+    print("Verbose information about the dataset:")
+    # print(f"Number of series in the training dataset: {len(datasets.train)}")
+    # print(f"Number of series in the testing dataset: {len(datasets.test)}")
 
-    # #direct load small files
-    # with open('pickle/es-6month-1min.pkl', 'rb') as f:
-    #     datasets = pickle.load(f)
-    #     file_size = os.path.getsize('pickle/es-6month-1min.pkl')
-    #     print(f"Size of the loaded file: {file_size} bytes")
+    # Calculate the number of unique days in the training and testing datasets
+    train_dates = set()
+    for entry in datasets.train:
+        start_date = entry['start']
+        if isinstance(start_date, pd.Period):
+            start_date = start_date.to_timestamp()
+        start_date = pd.to_datetime(start_date).date()
+        train_dates.add(start_date)
+    num_train_days = len(train_dates)
+    print(f"Number of unique days in the training dataset: {num_train_days}")
+
+    test_dates = set()
+    for entry in datasets.test:
+        start_date = entry['start']
+        if isinstance(start_date, pd.Period):
+            start_date = start_date.to_timestamp()
+        start_date = pd.to_datetime(start_date).date()
+        test_dates.add(start_date)
+    num_test_days = len(test_dates)
+    print(f"Number of unique days in the testing dataset: {num_test_days}")
+
+    return datasets, file_size
 
 
-    #####Zero shot
-    # forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
-    # # Save the forecasts and tss to a pickle file in a folder called pickle
-    # os.makedirs('pickle', exist_ok=True)
-    # with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
-    #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-    #     print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
 
-    #fine tun model
-    forecasts, tss = finetune(datasets)
-    with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
-        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-        print("Fine tuned forecasts have been saved to 'pickle/tuned_forecasts_tss.pkl'")
 
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    #initialize()
+    forecasts = None
+    tss = None
+
+    datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
     
-    
-    #######Forcast with fine tuned model 
-    # Path to the fine-tuned checkpoint
-    checkpoint_path = 'lightning_logs/version_4/checkpoints/epoch=494-step=24750.ckpt'
 
-    # Forecast using the fine-tuned checkpoint
-    forecasts, tss = load_checkpoint_and_forecast(
-        checkpoint_path=checkpoint_path,
-        dataset=datasets['test'],
-        prediction_length=datasets['metadata']['prediction_length'],
-        context_length=context_length,
-        num_samples=num_samples,
-        device="cpu"  # Use CPU
-    )
-
+    ####Zero shot
+    forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
     # Save the forecasts and tss to a pickle file in a folder called pickle
     os.makedirs('pickle', exist_ok=True)
-    with open('pickle/forecasts_tss.pkl', 'wb') as f:
+    with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
         pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-        print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
+        print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
+
+
+
+    # #fine tun model
+    # forecasts, tss = finetune(datasets)
+    # with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
+    #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+    #     print("Fine tuned forecasts have been saved to 'pickle/tuned_forecasts_tss.pkl'")
+
+    
+    
+    # #######Forcast with fine tuned model 
+    # # Path to the fine-tuned checkpoint
+    # checkpoint_path = 'lightning_logs/version_4/checkpoints/epoch=494-step=24750.ckpt'
+
+    # # Forecast using the fine-tuned checkpoint
+    # forecasts, tss = load_checkpoint_and_forecast(
+    #     checkpoint_path=checkpoint_path,
+    #     dataset=datasets['test'],
+    #     prediction_length=datasets['metadata']['prediction_length'],
+    #     context_length=context_length,
+    #     num_samples=num_samples,
+    #     device="cpu"  # Use CPU
+    # )
+
+    # # Save the forecasts and tss to a pickle file in a folder called pickle
+    # os.makedirs('pickle', exist_ok=True)
+    # with open('pickle/forecasts_tss.pkl', 'wb') as f:
+    #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+    #     print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
