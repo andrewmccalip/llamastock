@@ -441,38 +441,61 @@ def predict_plot(df):
 
 import numpy as np
 
-def fake_sinusoid_data():
+from scipy import signal
+
+def fake_wave_data():
     """
-    Generate a DataFrame with sinusoidal data for a specific date range.
+    Generate a DataFrame with various waveforms (sine, cosine, square, sawtooth, triangular) for a specific date range.
 
     Returns:
         pd.DataFrame: DataFrame containing datetime, date, time, and normalized_price columns.
     """
-    # Generate a date range for the timestamps (30 days, 1-minute frequency)
-    date_range = pd.date_range(start='2024-03-01 00:00', end='2024-03-30 23:59', freq='T')
+    # Generate a date range for the timestamps (150 days, 1-minute frequency)
+    date_range = pd.date_range(start='2024-03-01 00:00', end='2024-09-28 23:59', freq='T')
     
-    # Generate sinusoidal data that oscillates once per hour
+    # Generate wave data with random amplitude, phase, and period alterations
     period = len(date_range)
-    # 2 * pi * (1/60) * t for one oscillation per hour
-    normalized_prices = 1.0 + 0.03 * np.sin(2 * np.pi * (1/60) * np.arange(period))
+    amplitude = 0.03 + 0.001 * np.random.randn()  # Randomly alter the amplitude by 0.001
+    phase = np.random.uniform(0, 2 * np.pi)  # Random phase shift
+    period_factor = np.random.uniform(0.9, 1.1)  # Random period alteration within 10%
     
-    # Inject 5 percent noise into the sinusoidal data
-    noise = 0.002 * np.random.randn(period)
-    normalized_prices += noise
+    # Generate different waveforms
+    t = np.arange(period)
+    waveforms = {
+        'sine': lambda t: 1.0 + amplitude * np.sin(2 * np.pi * (1/60) * period_factor * t + phase),
+        'cosine': lambda t: 1.0 + amplitude * np.cos(2 * np.pi * (1/60) * period_factor * t + phase),
+        'square': lambda t: 1.0 + amplitude * signal.square(2 * np.pi * (1/60) * period_factor * t + phase),
+        'sawtooth': lambda t: 1.0 + amplitude * signal.sawtooth(2 * np.pi * (1/60) * period_factor * t + phase),
+        'triangular': lambda t: 1.0 + amplitude * signal.sawtooth(2 * np.pi * (1/60) * period_factor * t + phase, 0.5)
+    }
     
     # Create a DataFrame with the generated data
     df_filtered = pd.DataFrame({
-        'datetime': date_range,
-        'normalized_price': normalized_prices
+        'datetime': date_range
     })
     
     # Add 'date' and 'time' columns
     df_filtered['date'] = df_filtered['datetime'].dt.date
     df_filtered['time'] = df_filtered['datetime'].dt.time
     
+    # Assign a random waveform to each day
+    unique_dates = df_filtered['date'].unique()
+    normalized_prices = np.array([])
+    
+    for date in unique_dates:
+        wave_type = np.random.choice(list(waveforms.keys()))
+        day_indices = df_filtered[df_filtered['date'] == date].index
+        day_wave = waveforms[wave_type](t[:len(day_indices)])
+        normalized_prices = np.concatenate((normalized_prices, day_wave))
+    
+    # Inject 5 percent noise into the wave data
+    noise = 0.002 * np.random.randn(period)
+    normalized_prices += noise
+    
+    df_filtered['normalized_price'] = normalized_prices
+    
     print()
     return df_filtered
-    
 
 # Main execution
 if __name__ == "__main__":
@@ -481,10 +504,10 @@ if __name__ == "__main__":
     # Define the file path variable
     #json_file_path = 'stock_data/es-6month-1min.json'
     
-    json_file_path = 'stock_data/fake_sine.json'
+    json_file_path = 'stock_data/fake_waves.json'
     # Load or receive DataFrame from databento.py
     #df = json_to_df(json_file_path)
-    df = fake_sinusoid_data()
+    df = fake_wave_data()
     df_filtered = filter_prepare_and_plot_data(df)
    
     # Create ListDataset objects for training, validation, and testing
