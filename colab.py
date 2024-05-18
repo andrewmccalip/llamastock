@@ -229,7 +229,18 @@ if __name__ == "__main__":
    forecasts = None
    tss = None
 
-   with open('pickle/datasets_imported_stock_data.pkl', 'rb') as f:
+   import zipfile
+
+   # Path to the zip file
+   zip_file_path = 'pickle/datasets_10yr_imported_stock_data.zip'
+   extract_to_path = 'pickle/'
+
+   # Unzip the file
+   with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+       zip_ref.extractall(extract_to_path)
+   print(f"Unzipped {zip_file_path} to {extract_to_path}")
+
+   with open('pickle/datasets_10yr_imported_stock_data.pkl', 'rb') as f:
     datasets = pickle.load(f)
        
    
