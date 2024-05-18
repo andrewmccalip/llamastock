@@ -16,6 +16,12 @@ import pandas as pd
 from databento import json_to_df
 from llama_tuning import *
 
+# Add the cloned repository to the system path
+sys.path.append(os.path.abspath('./lag-llama'))
+
+# Import the LagLlamaEstimator after adding the repository to the path
+from lag_llama.gluon.estimator import LagLlamaEstimator
+
 
 def initialize():  #one time to prepare the environment
     subprocess.run(["git", "clone", "https://github.com/time-series-foundation-models/lag-llama/"])
@@ -111,11 +117,12 @@ def prepare_df():
     return datasets, df
 
 def forcast():
-    context_length = 1028  # 600 minutes (10 hours)
-    prediction_length = 420  # 360 minutes (6 hours)
-    num_samples = 2  # Number of sample paths to generate
+    context_length = 950  # 600 minutes (10 hours)
+    prediction_length = 150  # 360 minutes (6 hours)
+    num_samples = 1  # Number of sample paths to generate
     device = "cuda"  # Use GPU if available
 
+    #TSS is the time series. 
     forecasts, tss = get_lag_llama_predictions(
         datasets.test,
         prediction_length=datasets.metadata.prediction_length,
@@ -123,6 +130,7 @@ def forcast():
         context_length=context_length,
         device=device
     )
+    return forecasts, tss
 
 def plot_forcast():
     plt.figure(figsize=(20, 15))
@@ -294,10 +302,13 @@ def finetune():
 
 
 if __name__ == "__main__":
-
+    #initialize()
     datasets, df = prepare_df()
     
+    forecasts, tss = forcast()
 
+    print('Forecasts:')
+    print(forecasts)
     
 
 
