@@ -11,7 +11,5 @@ env/
 
 # Ignore data files
 *.csv
-*.json
-*.pkl
 
 /stock_data_ignored/

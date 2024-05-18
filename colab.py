@@ -439,4 +439,4 @@ if __name__ == "__main__":
     os.makedirs('pickle', exist_ok=True)
     with open('pickle/forecasts_tss.pkl', 'wb') as f:
         pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-        print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
+        print("Forecasts and time series have been saved to 'pickle/tuned_forecasts_tss.pkl'")
