@@ -177,15 +177,17 @@ def plot_forcast():
 def split_train_validation(datasets, validation_size=0.2):
     # Split the training dataset into training and validation sets
     train_data, val_data = train_test_split(datasets.train, test_size=validation_size, random_state=42)
-    # Return a new TrainDatasets object that includes the validation data
-    return TrainDatasets(metadata=datasets.metadata, train=train_data, val=val_data, test=datasets.test)
+    # Return the training and validation datasets separately
+    return TrainDatasets(metadata=datasets.metadata, train=train_data, test=datasets.test), val_data
 
-def finetune(datasets):
+
+def finetune(datasets, val_data):
     print('Starting fine tuning')
     device = "cuda" if torch.cuda.is_available() else "cpu"  # Use GPU if available, else use CPU
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
+    # Initialize the LagLlamaEstimator with the loaded checkpoint and hyperparameters
     estimator = LagLlamaEstimator(
         ckpt_path="lag-llama/lag-llama.ckpt",
         prediction_length=prediction_length,
@@ -194,24 +196,57 @@ def finetune(datasets):
         nonnegative_pred_samples=True,
         batch_size=64,
         num_parallel_samples=num_samples,
-        trainer_kwargs={
-            "max_epochs": 100,
-            "val_check_interval": 1.0,  # Validate every epoch
-            "callbacks": [ModelCheckpoint(monitor="val_loss")],  # Save the best model based on validation loss
-        },
-        **estimator_args
+        input_size=estimator_args["input_size"],
+        n_layer=estimator_args["n_layer"],
+        n_embd_per_head=estimator_args["n_embd_per_head"],
+        n_head=estimator_args["n_head"],
+        time_feat=estimator_args["time_feat"],
+        trainer_kwargs={"max_epochs": 100},
     )
 
-    # Train the estimator on the training dataset with validation data
-    predictor = estimator.train(
-        training_data=datasets.train,
-        validation_data=datasets.val,
-        cache_data=True,
-        shuffle_buffer_length=7000
-    )
+    # Print the number of series in the train, validation, and test datasets
+    print(f"Number of series in the training dataset: {len(datasets.train)}")
+    print(f"Number of series in the validation dataset: {len(val_data)}")
+    print(f"Number of series in the testing dataset: {len(datasets.test)}")
+
+    try:
+        # Train the estimator on the training dataset with validation data
+        predictor = estimator.train(
+            training_data=datasets.train,
+            validation_data=val_data,
+            cache_data=True,
+            shuffle_buffer_length=7000
+        )
+    except Exception as e:
+        # Print error and data entries if training fails
+        print(f"Error during training: {e}")
+        for data_entry in datasets.train:
+            print(data_entry)
+        raise
 
     print('Done fine tuning')
-    return predictor
+
+    # Make evaluation predictions on the test dataset
+    forecast_it, ts_it = make_evaluation_predictions(
+        dataset=datasets.test,
+        predictor=predictor,
+        num_samples=num_samples
+    )
+
+    print('Starting forecasting')
+
+    # Collect forecasts and ground truth time series
+    forecasts = list(tqdm(forecast_it, total=len(datasets.test), desc="Forecasting batches"))
+    print('Done forecasting')
+    tss = list(tqdm(ts_it, total=len(datasets.test), desc="Ground truth"))
+
+    # Evaluate the forecasts
+    evaluator = Evaluator()
+    agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
+
+    # Print aggregated metrics
+    print(agg_metrics)
+    return forecasts, tss
 
 
 def load_checkpoint_and_forecast(checkpoint_path, datasets, prediction_length, context_length, num_samples, device, batch_size=64, nonnegative_pred_samples=True, max_series=None):
@@ -367,22 +402,13 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
-    ####Step 1: load the stock data from saved pickle. This is the ES 1min canlde data 
+     # Load the datasets
     datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
-    
-    ###step 1.1 Double check file structure by doing a zero shot prediction on base weights 
-    ####Zero shot
-    # forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
-    # # Save the forecasts and tss to a pickle file in a folder called pickle
-    # os.makedirs('pickle', exist_ok=True)
-    # with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
-    #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-    #     print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
-
-    datasets = split_train_validation(datasets)
+    # Split the training dataset into training and validation sets
+    datasets, val_data = split_train_validation(datasets)
 
     # Fine-tune the model with the datasets that now include a validation set
-    predictor = finetune(datasets)
+    predictor = finetune(datasets, val_data)
 
 
     ## Step 2: fine tune model
