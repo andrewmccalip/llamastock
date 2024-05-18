@@ -416,8 +416,8 @@ def predict_plot(df):
 # Main execution
 if __name__ == "__main__":
     # Define the file path variable
-    #json_file_path = 'stock_data/es-6month-1min.json'
-    json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+    json_file_path = 'stock_data/es-6month-1min.json'
+    #json_file_path = 'stock_data_ignored\es-10yr-1min.json'
 
 
     # Load or receive DataFrame from databento.py
@@ -447,11 +447,11 @@ if __name__ == "__main__":
 
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
 
-    # Save the datasets to a pickle file in a folder called pickle
+       # Save the datasets to a pickle file in a folder called pickle
     os.makedirs('pickle', exist_ok=True)
     pickle_file_name = os.path.splitext(os.path.basename(json_file_path))[0] + '.pkl'
     with open(f'pickle/{pickle_file_name}', 'wb') as f:
-        pickle.dump(datasets, f)
-        print(f"Datasets have been saved to 'pickle/{pickle_file_name}'")
-    df.to_pickle(f"pickle/{pickle_file_name}")
-    print(f"DataFrame has been saved to 'pickle/df_{pickle_file_name}'")
+       pickle.dump(datasets, f)
+       print(f"Datasets have been saved to 'pickle/{pickle_file_name}'")
+    #df.to_pickle(f"pickle/{pickle_file_name}")
+    #print(f"DataFrame has been saved to 'pickle/df_{pickle_file_name}'")
