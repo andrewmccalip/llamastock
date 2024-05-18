@@ -439,18 +439,54 @@ def predict_plot(df):
     plt.show()
 
 
+import numpy as np
+
+def fake_sinusoid_data():
+    """
+    Generate a DataFrame with sinusoidal data for a specific date range.
+
+    Returns:
+        pd.DataFrame: DataFrame containing datetime, date, time, and normalized_price columns.
+    """
+    # Generate a date range for the timestamps (30 days, 1-minute frequency)
+    date_range = pd.date_range(start='2024-03-01 00:00', end='2024-03-30 23:59', freq='T')
+    
+    # Generate sinusoidal data that oscillates once per hour
+    period = len(date_range)
+    # 2 * pi * (1/60) * t for one oscillation per hour
+    normalized_prices = 1.0 + 0.03 * np.sin(2 * np.pi * (1/60) * np.arange(period))
+    
+    # Inject 5 percent noise into the sinusoidal data
+    noise = 0.002 * np.random.randn(period)
+    normalized_prices += noise
+    
+    # Create a DataFrame with the generated data
+    df_filtered = pd.DataFrame({
+        'datetime': date_range,
+        'normalized_price': normalized_prices
+    })
+    
+    # Add 'date' and 'time' columns
+    df_filtered['date'] = df_filtered['datetime'].dt.date
+    df_filtered['time'] = df_filtered['datetime'].dt.time
+    
+    print()
+    return df_filtered
+    
 
 # Main execution
 if __name__ == "__main__":
     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 
     # Define the file path variable
-    json_file_path = 'stock_data/es-6month-1min.json'
-
+    #json_file_path = 'stock_data/es-6month-1min.json'
+    
+    json_file_path = 'stock_data/fake_sine.json'
     # Load or receive DataFrame from databento.py
-    df = json_to_df(json_file_path)
+    #df = json_to_df(json_file_path)
+    df = fake_sinusoid_data()
     df_filtered = filter_prepare_and_plot_data(df)
-
+   
     # Create ListDataset objects for training, validation, and testing
     train_datasets, val_datasets, test_datasets = create_list_datasets(df_filtered)
 
