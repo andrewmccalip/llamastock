@@ -7,8 +7,8 @@ from itertools import islice
 import pandas as pd
 
 
-def load_forecasts():
-    with open('pickle/forecasts_tss.pkl', 'rb') as f:
+def load_forecasts(file_path):
+    with open(file_path, 'rb') as f:
         data = pickle.load(f)
     forecasts = data['forecasts']
     tss = data['tss']
@@ -105,7 +105,14 @@ def plot_time_series(forecasts, tss, context_length, prediction_length):
 
 
 if __name__ == "__main__":
-    forecasts, tss = load_forecasts()
-    debug_forecasts_tss(forecasts, tss)
+    
+    # #zero shot predictions
+    # forecasts, tss = load_forecasts('pickle/forecasts_tss.pkl')
+    # plot_time_series(forecasts, tss, context_length=960, prediction_length=360)
+    # print('done')
+
+      
+    # #fine tuned predictions
+    forecasts, tss = load_forecasts('pickle/tuned_forecasts_tss.pkl')
     plot_time_series(forecasts, tss, context_length=960, prediction_length=360)
     print('done')
