@@ -388,31 +388,31 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
-    datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
+    datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
-    finetune(datasets, val_data,max_epochs=5)
+    finetune(datasets, val_data,max_epochs=50)
    
 
     
     
-    #######Steo 3:Forcast with fine tuned model 
-   # Path to the fine-tuned checkpoint
-    checkpoint_path = 'lightning_logs/version_12/checkpoints/epoch=0-step=50.ckpt'
-    max_series = 9  # Set the maximum number of series to forecast
-    forecasts, tss = load_checkpoint_and_forecast(
-        checkpoint_path=checkpoint_path,
-        datasets=datasets,  # Pass the datasets object directly
-        prediction_length=datasets.metadata.prediction_length,
-        context_length=context_length,
-        num_samples=num_samples,
-        device="cuda",  # Use
-        max_series=max_series  # Limit the number of series to forecast
-    )
+#     #######Steo 3:Forcast with fine tuned model 
+#    # Path to the fine-tuned checkpoint
+#     checkpoint_path = 'lightning_logs/version_12/checkpoints/epoch=0-step=50.ckpt'
+#     max_series = 9  # Set the maximum number of series to forecast
+#     forecasts, tss = load_checkpoint_and_forecast(
+#         checkpoint_path=checkpoint_path,
+#         datasets=datasets,  # Pass the datasets object directly
+#         prediction_length=datasets.metadata.prediction_length,
+#         context_length=context_length,
+#         num_samples=num_samples,
+#         device="cuda",  # Use
+#         max_series=max_series  # Limit the number of series to forecast
+#     )
 
 
-    #####Step 4: save the forecasts (time series) in their own picke for for further plotting in data_review.py 
-    # Save the forecasts and tss to a pickle file in a folder called pickle
-    os.makedirs('pickle', exist_ok=True)
-    with open('pickle/forecasts_tss.pkl', 'wb') as f:
-        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-        print("Forecasts and time series have been saved to 'pickle/tuned_forecasts_tss.pkl'")
+#     #####Step 4: save the forecasts (time series) in their own picke for for further plotting in data_review.py 
+#     # Save the forecasts and tss to a pickle file in a folder called pickle
+#     os.makedirs('pickle', exist_ok=True)
+#     with open('pickle/forecasts_tss.pkl', 'wb') as f:
+#         pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+#         print("Forecasts and time series have been saved to 'pickle/tuned_forecasts_tss.pkl'")
