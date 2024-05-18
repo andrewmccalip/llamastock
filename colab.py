@@ -19,6 +19,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from sklearn.model_selection import train_test_split
 from gluonts.dataset.common import TrainDatasets
+import logging
+logging.basicConfig(level=logging.DEBUG)
 #matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 import warnings
@@ -167,7 +169,7 @@ def split_train_validation(datasets, validation_ratio=0.2):
     
     return TrainDatasets(metadata=datasets.metadata, train=train_data, test=datasets.test), val_data
 
-def finetune(datasets, val_data):
+def finetune(datasets, val_data,max_epochs):
     print('Starting fine tuning')
     device = "cuda" if torch.cuda.is_available() else "cpu"
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
@@ -186,7 +188,7 @@ def finetune(datasets, val_data):
         n_embd_per_head=estimator_args["n_embd_per_head"],
         n_head=estimator_args["n_head"],
         time_feat=estimator_args["time_feat"],
-        trainer_kwargs={"max_epochs": 100},
+        trainer_kwargs={"max_epochs": max_epochs},
     )
 
     # Print verbose information about the number of days in the datasets
@@ -228,27 +230,27 @@ def finetune(datasets, val_data):
 
     print('Done fine tuning')
 
-    # Make evaluation predictions on the test dataset
-    forecast_it, ts_it = make_evaluation_predictions(
-        dataset=datasets.test,
-        predictor=predictor,
-        num_samples=num_samples
-    )
+    # # Make evaluation predictions on the test dataset
+    # forecast_it, ts_it = make_evaluation_predictions(
+    #     dataset=datasets.test,
+    #     predictor=predictor,
+    #     num_samples=num_samples
+    # )
 
-    print('Starting forecasting')
+    # print('Starting forecasting')
 
-    # Collect forecasts and ground truth time series
-    forecasts = list(tqdm(forecast_it, total=len(datasets.test), desc="Forecasting batches"))
-    print('Done forecasting')
-    tss = list(tqdm(ts_it, total=len(datasets.test), desc="Ground truth"))
+    # # Collect forecasts and ground truth time series
+    # forecasts = list(tqdm(forecast_it, total=len(datasets.test), desc="Forecasting batches"))
+    # print('Done forecasting')
+    # tss = list(tqdm(ts_it, total=len(datasets.test), desc="Ground truth"))
 
-    # Evaluate the forecasts
-    evaluator = Evaluator()
-    agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
+    # # Evaluate the forecasts
+    # evaluator = Evaluator()
+    # agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
 
-    # Print aggregated metrics
-    print(agg_metrics)
-    return forecasts, tss
+    # # Print aggregated metrics
+    # print(agg_metrics)
+    # return forecasts, tss
 
 
 def load_checkpoint_and_forecast(checkpoint_path, datasets, prediction_length, context_length, num_samples, device, batch_size=64, nonnegative_pred_samples=True, max_series=None):
@@ -386,7 +388,7 @@ if __name__ == "__main__":
 
     datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
-    forecasts, tss = finetune(datasets, val_data)
+    finetune(datasets, val_data,max_epochs=5)
    
 
     
@@ -402,7 +404,7 @@ if __name__ == "__main__":
         context_length=context_length,
         num_samples=num_samples,
         device="cuda",  # Use
-         max_series=max_series  # Limit the number of series to forecast
+        max_series=max_series  # Limit the number of series to forecast
     )
 
 
