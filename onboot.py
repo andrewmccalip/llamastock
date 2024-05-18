@@ -1,15 +1,4 @@
-import subprocess
-import sys
+#stuff to do on boot 
 
-
-try:
-    import pandas
-    import json
-    import pytz
-    import matplotlib
-    import numpy
-    import scipy
-except ImportError:
-    print("Some packages are missing. Installing...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-
+sudo apt-get install bpytop
+bpytop

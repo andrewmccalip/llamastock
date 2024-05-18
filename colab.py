@@ -36,7 +36,7 @@ from lag_llama.gluon.estimator import ValidationSplitSampler
 
 context_length = 950  # 600 minutes (10 hours)
 prediction_length = 360  # 360 minutes (6 hours)
-num_samples = 1  # Number of sample paths to generate
+num_parallel_samples = 20  # Number of sample paths to generate
 
 
 def initialize():
@@ -169,7 +169,7 @@ def split_train_validation(datasets, validation_ratio=0.2):
     
     return TrainDatasets(metadata=datasets.metadata, train=train_data, test=datasets.test), val_data
 
-def finetune(datasets, val_data,max_epochs):
+def finetune(datasets,val_data,max_epochs):
     print('Starting fine tuning')
     device="cuda"
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
@@ -179,16 +179,17 @@ def finetune(datasets, val_data,max_epochs):
         ckpt_path="lag-llama/lag-llama.ckpt",
         prediction_length=prediction_length,
         context_length=context_length,
-        scaling="mean",
+        scaling="std",
+         precision=32,  # Precision for training
         nonnegative_pred_samples=True,
         batch_size=64,
-        num_parallel_samples=num_samples,
+        num_parallel_samples=num_parallel_samples,
         input_size=estimator_args["input_size"],
         n_layer=estimator_args["n_layer"],
         n_embd_per_head=estimator_args["n_embd_per_head"],
         n_head=estimator_args["n_head"],
         time_feat=estimator_args["time_feat"],
-        trainer_kwargs={"max_epochs": 100},
+        trainer_kwargs={"max_epochs": max_epochs},
     )
 
     # Callbacks
@@ -209,10 +210,10 @@ def finetune(datasets, val_data,max_epochs):
 
     # Trainer
     trainer = Trainer(
-        max_epochs=100,
+        max_epochs=150,
         callbacks=[checkpoint_callback, early_stopping_callback],
         log_every_n_steps=1,
-        val_check_interval=0.5  # Validate twice per epoch
+        val_check_interval=1  # Validate twice per epoch
     )
 
     # Training
@@ -300,7 +301,7 @@ def load_checkpoint_and_forecast(checkpoint_path, datasets, prediction_length, c
         },
 
         batch_size=batch_size,
-        num_parallel_samples=num_samples,
+        num_parallel_samples=num_parallel_samples,
     )
 
     # Create the predictor
@@ -390,7 +391,7 @@ if __name__ == "__main__":
 
     datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
-    finetune(datasets, val_data,max_epochs=50)
+    finetune(datasets, val_data,max_epochs=100)
    
 
     
