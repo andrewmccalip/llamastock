@@ -9,7 +9,7 @@ import torch
 from gluonts.evaluation import make_evaluation_predictions, Evaluator
 from gluonts.dataset.repository.datasets import get_dataset
 from gluonts.dataset.pandas import PandasDataset
-
+import warnings
 import pandas as pd
 import pickle
 from data_prep import *
@@ -22,6 +22,7 @@ from gluonts.dataset.common import TrainDatasets
 #matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 import warnings
+warnings.filterwarnings("ignore", message="Using `json`-module for json-handling. Consider installing one of `orjson`, `ujson` to speed up serialization and deserialization.")
 warnings.filterwarnings("ignore", message="Using `json`-module for json-handling. Consider installing one of `orjson`, `ujson` to speed up serialization and deserialization.")
 
 # Add the cloned repository to the system path
@@ -143,20 +144,28 @@ def plot_forcast():
 
 
 def split_train_validation(datasets, validation_ratio=0.2):
+    # Calculate the number of validation samples
+    num_validation_samples = int(len(datasets.train) * validation_ratio)
+    
+    # Initialize the ValidationSplitSampler
     validation_sampler = ValidationSplitSampler(min_future=prediction_length)
     
     train_data = []
     val_data = []
+    validation_count = 0
+    
     for entry in datasets.train:
         # Extract the time series data from the entry
         ts = entry['target']
-        if validation_sampler(ts):
+        
+        # Use the validation sampler to determine if the entry should be in the validation set
+        if validation_count < num_validation_samples and validation_sampler(ts):
             val_data.append(entry)
+            validation_count += 1
         else:
             train_data.append(entry)
     
     return TrainDatasets(metadata=datasets.metadata, train=train_data, test=datasets.test), val_data
-
 
 def finetune(datasets, val_data):
     print('Starting fine tuning')
@@ -180,6 +189,36 @@ def finetune(datasets, val_data):
         trainer_kwargs={"max_epochs": 100},
     )
 
+    # Print verbose information about the number of days in the datasets
+    train_dates = set()
+    for entry in datasets.train:
+        start_date = entry['start']
+        if isinstance(start_date, pd.Period):
+            start_date = start_date.to_timestamp()
+        start_date = pd.to_datetime(start_date).date()
+        train_dates.add(start_date)
+    num_train_days = len(train_dates)
+    print(f"Number of unique days in the training dataset: {num_train_days}")
+
+    val_dates = set()
+    for entry in val_data:
+        start_date = entry['start']
+        if isinstance(start_date, pd.Period):
+            start_date = start_date.to_timestamp()
+        start_date = pd.to_datetime(start_date).date()
+        val_dates.add(start_date)
+    num_val_days = len(val_dates)
+    print(f"Number of unique days in the validation dataset: {num_val_days}")
+
+    test_dates = set()
+    for entry in datasets.test:
+        start_date = entry['start']
+        if isinstance(start_date, pd.Period):
+            start_date = start_date.to_timestamp()
+        start_date = pd.to_datetime(start_date).date()
+        test_dates.add(start_date)
+    num_test_days = len(test_dates)
+    print(f"Number of unique days in the testing dataset: {num_test_days}")
     predictor = estimator.train(
         training_data=datasets.train,
         validation_data=val_data,
@@ -326,26 +365,6 @@ def load_pickle(zip_file_path, extract_to_path='pickle/'):
     # print(f"Number of series in the training dataset: {len(datasets.train)}")
     # print(f"Number of series in the testing dataset: {len(datasets.test)}")
 
-    # Calculate the number of unique days in the training and testing datasets
-    train_dates = set()
-    for entry in datasets.train:
-        start_date = entry['start']
-        if isinstance(start_date, pd.Period):
-            start_date = start_date.to_timestamp()
-        start_date = pd.to_datetime(start_date).date()
-        train_dates.add(start_date)
-    num_train_days = len(train_dates)
-    print(f"Number of unique days in the training dataset: {num_train_days}")
-
-    test_dates = set()
-    for entry in datasets.test:
-        start_date = entry['start']
-        if isinstance(start_date, pd.Period):
-            start_date = start_date.to_timestamp()
-        start_date = pd.to_datetime(start_date).date()
-        test_dates.add(start_date)
-    num_test_days = len(test_dates)
-    print(f"Number of unique days in the testing dataset: {num_test_days}")
 
     return datasets, file_size
 
