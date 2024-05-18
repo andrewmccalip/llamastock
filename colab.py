@@ -18,6 +18,10 @@ import zipfile
 import pickle
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
+import h5py
+
+#matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 
 
 # Add the cloned repository to the system path
@@ -206,7 +210,14 @@ def finetune(datasets):
             trainer_kwargs = {"max_epochs": 2,}, # <- lightning trainer arguments
         )
 
-    predictor = estimator.train(datasets.train, cache_data=True, shuffle_buffer_length=7000)
+    try:
+        predictor = estimator.train(datasets.train, cache_data=True, shuffle_buffer_length=7000)
+    except Exception as e:
+        print(f"Error during training: {e}")
+        for data_entry in datasets.train:
+            print(data_entry)
+        raise
+
     print('Done fine tuning')
     forecast_it, ts_it = make_evaluation_predictions(
             dataset=datasets.test,
@@ -214,6 +225,16 @@ def finetune(datasets):
             num_samples=num_samples
         )
 
+    print('Starting forecasting')
+    forecasts = list(tqdm(forecast_it, total=len(datasets.test), desc="Forecasting batches"))
+    print('Done forecasting')
+    tss = list(tqdm(ts_it, total=len(datasets.test), desc="Ground truth"))
+
+    evaluator = Evaluator()
+    agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
+
+    print(agg_metrics)
+    return forecasts, tss
 
 
 
@@ -273,19 +294,33 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
-    # Path to the zip file
-    zip_file_path = 'pickle/es-10yr-1min.zip'
+    # # Path to the zip file
+    # zip_file_path = 'pickle/es-10yr-1min.zip'
+    zip_file_path = 'pickle/es-6month-1min.zip'
     extract_to_path = 'pickle/'
 
-    # Unzip the file
-    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to_path)
+    import pickle
+    import zipfile
+
+    # Unzip the pickle file
+    with zipfile.ZipFile(zip_file_path, 'r') as zipf:
+        zipf.extractall(extract_to_path)
     print(f"Unzipped {zip_file_path} to {extract_to_path}")
 
-    with open('pickle/es-10yr-1min.pkl', 'rb') as f:
+    # Load the pickle file
+    pickle_file_path = 'pickle/es-6month-1min.pkl'
+    with open(pickle_file_path, 'rb') as f:
         datasets = pickle.load(f)
-        file_size = os.path.getsize('pickle/es-10yr-1min.pkl')
+        file_size = os.path.getsize(pickle_file_path)
         print(f"Size of the loaded file: {file_size} bytes")
+
+
+    # #direct load small files
+    # with open('pickle/es-6month-1min.pkl', 'rb') as f:
+    #     datasets = pickle.load(f)
+    #     file_size = os.path.getsize('pickle/es-6month-1min.pkl')
+    #     print(f"Size of the loaded file: {file_size} bytes")
+
 
     #####Zero shot
     # forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained

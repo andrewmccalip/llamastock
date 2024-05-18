@@ -9,7 +9,7 @@ import matplotlib.dates as mdates
 from datetime import datetime, time
 import pytz
 import matplotlib
-matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
+#matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 #matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 from gluonts.dataset.common import TrainDatasets, MetaData, CategoricalFeatureInfo
 import os
