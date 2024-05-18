@@ -404,7 +404,7 @@ def predict_plot(df):
 if __name__ == "__main__":
     # Load or receive DataFrame from databento.py
     #df = json_to_df('stock_data\es-6month-1min.json')  
-    df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
+    df = json_to_df('stock_data\es-6month-1min.json')  # Assuming json_to_df is imported from databento.py
     df_filtered = filter_prepare_and_plot_data(df)
     train_datasets,test_datasets = create_list_datasets(df_filtered)
 
