@@ -27,7 +27,12 @@ def debug_forecasts_tss(forecasts, tss):
         print(f"  Forecast length: {len(forecast.mean)}")
         print(f"  Time series length: {len(ts)}")
 
-def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples):
+def smooth_series(series, window_size):
+    return series.rolling(window=window_size, min_periods=1).mean()
+
+
+
+def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples, smoothing_window=10):
     plt.figure(figsize=(20, 15))
     date_formatter = mdates.DateFormatter('%H:%M')  # Format to display hours and minutes
     plt.rcParams.update({'font.size': 15, 'xtick.labelsize': 10, 'ytick.labelsize': 10})
@@ -69,19 +74,16 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
         ground_truth_start_idx = context_end_idx + pd.Timedelta(minutes=1)
         ground_truth_end_idx = ground_truth_start_idx + pd.Timedelta(minutes=prediction_length - 1)
 
-        # Print debug information about the indices
-        # print(f"  Context start index: {context_start_idx}")
-        # print(f"  Context end index: {context_end_idx}")
-        # print(f"  Ground truth start index: {ground_truth_start_idx}")
-        # print(f"  Ground truth end index: {ground_truth_end_idx}")
-
         # Extract context and ground truth series
         context_series = ts[context_start_idx:context_end_idx]
         ground_truth_series = ts[ground_truth_start_idx:ground_truth_end_idx]
 
-        # Print debug information about the extracted series
-        print(f"  Context series length: {len(context_series)}")
-        print(f"  Ground truth series length: {len(ground_truth_series)}")
+        # Apply smoothing to the forecast series
+        forecast_start_idx = ground_truth_start_idx
+        forecast_end_idx = forecast_start_idx + pd.Timedelta(minutes=len(forecast.mean) - 1)
+        forecast_index = pd.date_range(start=forecast_start_idx, end=forecast_end_idx, freq='T')
+        forecast_series = pd.Series(forecast.mean, index=forecast_index)
+        smoothed_forecast_series = smooth_series(forecast_series, smoothing_window)
 
         # Plot the context window
         plt.plot(context_series.index, context_series, color='blue', label="context")
@@ -89,12 +91,8 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
         # Plot the ground truth
         plt.plot(ground_truth_series.index, ground_truth_series, color='red', label="ground truth")
 
-        # Plot the forecast
-        forecast_start_idx = ground_truth_start_idx
-        forecast_end_idx = forecast_start_idx + pd.Timedelta(minutes=len(forecast.mean) - 1)
-        forecast_index = pd.date_range(start=forecast_start_idx, end=forecast_end_idx, freq='T')
-        forecast_series = pd.Series(forecast.mean, index=forecast_index)
-        plt.plot(forecast_series.index, forecast_series, color='green', label="forecast")
+        # Plot the smoothed forecast
+        plt.plot(smoothed_forecast_series.index, smoothed_forecast_series, color='green', label="smoothed forecast")
 
         # Combine context and ground truth to set y-axis limits
         combined_series = pd.concat([context_series, ground_truth_series])
