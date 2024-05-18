@@ -9,8 +9,6 @@ import matplotlib.dates as mdates
 from datetime import datetime, time
 import pytz
 import matplotlib
-#matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
-#matplotlib.use('Agg')  # Use TkAgg backend for interactive plotting
 from gluonts.dataset.common import TrainDatasets, MetaData, CategoricalFeatureInfo
 import os
 import pickle
@@ -415,9 +413,11 @@ def predict_plot(df):
 
 # Main execution
 if __name__ == "__main__":
+    
+    matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
     # Define the file path variable
-    json_file_path = 'stock_data/es-6month-1min.json'
-    #json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+    #json_file_path = 'stock_data/es-6month-1min.json'
+    json_file_path = 'stock_data_ignored\es-10yr-1min.json'
 
 
     # Load or receive DataFrame from databento.py
