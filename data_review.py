@@ -1,13 +1,23 @@
 import pickle
-global forecasts, tss
-
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from itertools import islice
 import pandas as pd
 import random
 
+# Global variables to store forecasts and time series data
+global forecasts, tss
+
 def load_forecasts(file_path):
+    """
+    Load forecast and time series data from a pickle file.
+
+    Parameters:
+    file_path (str): Path to the pickle file containing the data.
+
+    Returns:
+    tuple: A tuple containing forecasts and time series data.
+    """
     with open(file_path, 'rb') as f:
         data = pickle.load(f)
     forecasts = data['forecasts']
@@ -16,9 +26,14 @@ def load_forecasts(file_path):
     print(f"Number of series in the forecasts dataset: {len(forecasts)}")
     return forecasts, tss
 
-
-
 def debug_forecasts_tss(forecasts, tss):
+    """
+    Print debug information about the forecasts and time series data.
+
+    Parameters:
+    forecasts (list): List of forecast objects.
+    tss (list): List of time series data.
+    """
     print(f"Number of series in forecasts: {len(forecasts)}")
     print(f"Number of series in tss: {len(tss)}")
     
@@ -28,16 +43,35 @@ def debug_forecasts_tss(forecasts, tss):
         print(f"  Time series length: {len(ts)}")
 
 def smooth_series(series, window_size):
+    """
+    Apply a rolling mean to smooth the series.
+
+    Parameters:
+    series (pd.Series): The time series data to be smoothed.
+    window_size (int): The window size for the rolling mean.
+
+    Returns:
+    pd.Series: The smoothed time series.
+    """
     return series.rolling(window=window_size, min_periods=1).mean()
 
-
-
 def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples, smoothing_window=10):
+    """
+    Plot the time series data along with forecasts.
+
+    Parameters:
+    forecasts (list): List of forecast objects.
+    tss (list): List of time series data.
+    context_length (int): Length of the context window.
+    prediction_length (int): Length of the prediction window.
+    max_samples (int): Maximum number of samples to plot.
+    smoothing_window (int): Window size for smoothing the forecast series.
+    """
     plt.figure(figsize=(20, 15))
     date_formatter = mdates.DateFormatter('%H:%M')  # Format to display hours and minutes
     plt.rcParams.update({'font.size': 15, 'xtick.labelsize': 10, 'ytick.labelsize': 10})
 
-    # Ensure N does not exceed the number of available series
+    # Ensure max_samples does not exceed the number of available series
     max_samples = min(max_samples, len(forecasts), len(tss))
 
     # Randomly select indices for the samples
@@ -45,13 +79,13 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
 
     # Calculate the number of rows and columns for the subplots
     n_cols = 3
-    n_rows = (max_samples + n_cols - 1) // n_cols  # This ensures enough rows to fit N subplots
+    n_rows = (max_samples + n_cols - 1) // n_cols  # This ensures enough rows to fit max_samples subplots
 
     # Iterate through the randomly selected series, and plot the predicted samples
     for idx, random_idx in enumerate(random_indices):
         forecast = forecasts[random_idx]
         ts = tss[random_idx]
-        ax = plt.subplot(n_rows, n_cols, idx + 1)  # Adjust subplot grid size based on N
+        ax = plt.subplot(n_rows, n_cols, idx + 1)  # Adjust subplot grid size based on max_samples
 
         # Convert PeriodIndex to Timestamp
         ts = ts.to_timestamp()
@@ -116,16 +150,8 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
     plt.gcf().tight_layout()
     plt.show()
 
-
 if __name__ == "__main__":
-    
-    # #zero shot predictions
-    # forecasts, tss = load_forecasts('pickle/forecasts_tss.pkl')
-    # plot_time_series(forecasts, tss, context_length=960, prediction_length=360)
-    # print('done')
-
-      
-    # #fine tuned predictions
+    # Load and plot fine-tuned predictions
     forecasts, tss = load_forecasts('pickle/tuned_forecasts_tss.pkl')
-    plot_time_series(forecasts, tss, context_length=960, prediction_length=360,max_samples=9)
+    plot_time_series(forecasts, tss, context_length=960, prediction_length=360, max_samples=9)
     print('done')
