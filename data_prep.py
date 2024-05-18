@@ -447,10 +447,18 @@ if __name__ == "__main__":
 
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
     import pickle
+    import zipfile
 
     # Save the datasets to a pickle file
     os.makedirs('pickle', exist_ok=True)
     pickle_file_name = os.path.splitext(os.path.basename(json_file_path))[0] + '.pkl'
-    with open(f'pickle/{pickle_file_name}', 'wb') as f:
+    pickle_file_path = f'pickle/{pickle_file_name}'
+    with open(pickle_file_path, 'wb') as f:
         pickle.dump(datasets, f, protocol=pickle.HIGHEST_PROTOCOL)
-        print(f"Datasets have been saved to 'pickle/{pickle_file_name}'")
+        print(f"Datasets have been saved to '{pickle_file_path}'")
+
+    # Zip the pickle file
+    zip_file_path = f'pickle/{os.path.splitext(pickle_file_name)[0]}.zip'
+    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write(pickle_file_path, os.path.basename(pickle_file_path))
+        print(f"Pickle file zipped to '{zip_file_path}'")
