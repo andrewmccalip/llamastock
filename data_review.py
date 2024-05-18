@@ -5,13 +5,15 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from itertools import islice
 import pandas as pd
-
+import random
 
 def load_forecasts(file_path):
     with open(file_path, 'rb') as f:
         data = pickle.load(f)
     forecasts = data['forecasts']
     tss = data['tss']
+
+    print(f"Number of series in the forecasts dataset: {len(forecasts)}")
     return forecasts, tss
 
 
@@ -28,31 +30,36 @@ def debug_forecasts_tss(forecasts, tss):
 def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples):
     plt.figure(figsize=(20, 15))
     date_formatter = mdates.DateFormatter('%H:%M')  # Format to display hours and minutes
-    plt.rcParams.update({'font.size': 15})
+    plt.rcParams.update({'font.size': 15, 'xtick.labelsize': 10, 'ytick.labelsize': 10})
 
     # Ensure N does not exceed the number of available series
     max_samples = min(max_samples, len(forecasts), len(tss))
+
+    # Randomly select indices for the samples
+    random_indices = random.sample(range(len(forecasts)), max_samples)
 
     # Calculate the number of rows and columns for the subplots
     n_cols = 3
     n_rows = (max_samples + n_cols - 1) // n_cols  # This ensures enough rows to fit N subplots
 
-    # Iterate through the first N series, and plot the predicted samples
-    for idx, (forecast, ts) in islice(enumerate(zip(forecasts, tss)), max_samples):
+    # Iterate through the randomly selected series, and plot the predicted samples
+    for idx, random_idx in enumerate(random_indices):
+        forecast = forecasts[random_idx]
+        ts = tss[random_idx]
         ax = plt.subplot(n_rows, n_cols, idx + 1)  # Adjust subplot grid size based on N
 
         # Convert PeriodIndex to Timestamp
         ts = ts.to_timestamp()
 
         # Print debug information about the series
-        print(f"\nSeries {idx}:")
+        print(f"\nSeries {random_idx}:")
         print(f"  Total length of time series: {len(ts)}")
         print(f"  Forecast length: {len(forecast.mean)}")
 
         # Adjust context and prediction lengths if the series is too short
         total_length = len(ts)
         if total_length < context_length + prediction_length:
-            print(f"Adjusting lengths for series {idx} because it is too short.")
+            print(f"Adjusting lengths for series {random_idx} because it is too short.")
             context_length = total_length // 2
             prediction_length = total_length - context_length
 
@@ -63,10 +70,10 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
         ground_truth_end_idx = ground_truth_start_idx + pd.Timedelta(minutes=prediction_length - 1)
 
         # Print debug information about the indices
-        print(f"  Context start index: {context_start_idx}")
-        print(f"  Context end index: {context_end_idx}")
-        print(f"  Ground truth start index: {ground_truth_start_idx}")
-        print(f"  Ground truth end index: {ground_truth_end_idx}")
+        # print(f"  Context start index: {context_start_idx}")
+        # print(f"  Context end index: {context_end_idx}")
+        # print(f"  Ground truth start index: {ground_truth_start_idx}")
+        # print(f"  Ground truth end index: {ground_truth_end_idx}")
 
         # Extract context and ground truth series
         context_series = ts[context_start_idx:context_end_idx]
@@ -122,5 +129,5 @@ if __name__ == "__main__":
       
     # #fine tuned predictions
     forecasts, tss = load_forecasts('pickle/tuned_forecasts_tss.pkl')
-    plot_time_series(forecasts, tss, context_length=960, prediction_length=360,max_samples=6)
+    plot_time_series(forecasts, tss, context_length=960, prediction_length=360,max_samples=9)
     print('done')
