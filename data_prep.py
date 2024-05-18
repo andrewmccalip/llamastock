@@ -14,7 +14,8 @@ import os  # For operating system interactions
 import pickle  # For serializing objects
 from scipy.spatial.distance import euclidean  # For calculating Euclidean distance
 from concurrent.futures import ProcessPoolExecutor  # For parallel processing
-import h5py  # For handling HDF5 files
+import zipfile  # Add this import at the beginning of your script
+
 
 # Define the prediction length
 prediction_length = 360
@@ -69,46 +70,73 @@ def filter_prepare_and_plot_data(df):
     return df
 
 # Function to create ListDataset
-def create_list_datasets(df, freq='T'):
+def create_list_datasets(df, freq='T', train_ratio=0.6, val_ratio=0.2):
+    """
+    Create ListDataset objects for training, validation, and testing.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the time series data.
+        freq (str): The frequency of the time series data.
+        train_ratio (float): The ratio of data to be used for training.
+        val_ratio (float): The ratio of data to be used for validation.
+
+    Returns:
+        tuple: A tuple containing ListDataset objects for training, validation, and testing.
+    """
     train_datasets = []  # List to hold training datasets
+    val_datasets = []  # List to hold validation datasets
     test_datasets = []  # List to hold testing datasets
 
     # Group by the 'datetime' column's date part
     df['date'] = df['datetime'].dt.date
     unique_dates = df['date'].unique()  # Get unique dates
-    
-    # Determine the split index
-    split_index = int(len(unique_dates) * 0.7)  # 70% for training, 30% for testing
-    
-    # Split the dates into training and testing sets
-    train_dates = unique_dates[:split_index]
-    test_dates = unique_dates[split_index:]
-    
+
+    # Determine the split indices
+    train_split_index = int(len(unique_dates) * train_ratio)
+    val_split_index = int(len(unique_dates) * (train_ratio + val_ratio))
+
+    # Split the dates into training, validation, and testing sets
+    train_dates = unique_dates[:train_split_index]
+    val_dates = unique_dates[train_split_index:val_split_index]
+    test_dates = unique_dates[val_split_index:]
+
     # Process training data
     for date in train_dates:
         group = df[df['date'] == date]
         group = group.sort_values(by='datetime')  # Sort by datetime
-        
+
         # Create a dictionary for the training dataset
         train_ds = {'target': group['normalized_price'].values, 'start': str(group['datetime'].iloc[0]), 'item_id': str(date)}
         train_datasets.append(train_ds)
-    
+
+    # Process validation data
+    for date in val_dates:
+        group = df[df['date'] == date]
+        group = group.sort_values(by='datetime')  # Sort by datetime
+
+        # Create a dictionary for the validation dataset
+        val_ds = {'target': group['normalized_price'].values, 'start': str(group['datetime'].iloc[0]), 'item_id': str(date)}
+        val_datasets.append(val_ds)
+
     # Process testing data
     for date in test_dates:
         group = df[df['date'] == date]
         group = group.sort_values(by='datetime')  # Sort by datetime
-        
+
         # Create a dictionary for the testing dataset
         test_ds = {'target': group['normalized_price'].values, 'start': str(group['datetime'].iloc[0]), 'item_id': str(date)}
         test_datasets.append(test_ds)
-    
-    # Report the number of unique days in train and test datasets
+
+    # Report the number of unique days in train, val, and test datasets
     num_train_days = len(train_dates)
+    num_val_days = len(val_dates)
     num_test_days = len(test_dates)
     print(f"Number of training days: {num_train_days}")
+    print(f"Number of validation days: {num_val_days}")
     print(f"Number of testing days: {num_test_days}")
 
-    return ListDataset(train_datasets, freq=freq), ListDataset(test_datasets, freq=freq)
+    return ListDataset(train_datasets, freq=freq), ListDataset(val_datasets, freq=freq), ListDataset(test_datasets, freq=freq)
+
 
 # Function to convert dataset to DataFrame
 def dataset_to_dataframe(dataset):
@@ -403,38 +431,44 @@ if __name__ == "__main__":
     
     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
     # Define the file path variable
-    #json_file_path = 'stock_data/es-6month-1min.json'
-    json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+    json_file_path = 'stock_data/es-6month-1min.json'
+    #json_file_path = 'stock_data_ignored\es-10yr-1min.json'
 
 
     # Load or receive DataFrame from databento.py
     df = json_to_df(json_file_path)  
     #df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
     df_filtered = filter_prepare_and_plot_data(df)
-    train_datasets, test_datasets = create_list_datasets(df_filtered)
+    # Assuming df_filtered is already defined and contains the filtered data
+    train_datasets, val_datasets, test_datasets = create_list_datasets(df_filtered)
 
+
+    # Create and save metadata
     # Create and save metadata
     create_metadata()
 
     # Convert datasets to DataFrame for reporting
     train_df = dataset_to_dataframe(train_datasets)
+    val_df = dataset_to_dataframe(val_datasets)
     test_df = dataset_to_dataframe(test_datasets)
 
-    # Report the number of unique days in train and test datasets
+    # Report the number of unique days in train, val, and test datasets
     num_train_days = train_df['date'].dt.date.nunique()
+    num_val_days = val_df['date'].dt.date.nunique()
     num_test_days = test_df['date'].dt.date.nunique()
-    # print(f"Number of training days: {num_train_days}")
-    # print(f"Number of testing days: {num_test_days}")
+    print(f"Number of training days: {num_train_days}")
+    print(f"Number of validation days: {num_val_days}")
+    print(f"Number of testing days: {num_test_days}")
 
-    # # Plot the train and test series on a new figure with subplots
-    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 16))
-    # dataset_plot(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
-    # dataset_plot(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
-    # plt.show()
+    # Plot the train, val, and test series on a new figure with subplots
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 24))
+    dataset_plot(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
+    dataset_plot(val_datasets, ax2, title='Normalized Price Time Series for Validation Data')
+    dataset_plot(test_datasets, ax3, title='Normalized Price Time Series for Testing Data')
+    plt.show()
 
+    # Create training datasets
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
-    import pickle
-    import zipfile
 
     # Save the datasets to a pickle file
     os.makedirs('pickle', exist_ok=True)
