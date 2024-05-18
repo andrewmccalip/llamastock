@@ -1,26 +1,23 @@
 # Import necessary libraries
-from gluonts.dataset.common import ListDataset
-import json
-import numpy as np
-from pathlib import Path
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime, time
-import pytz
-import matplotlib
-from gluonts.dataset.common import TrainDatasets, MetaData, CategoricalFeatureInfo
-import os
-import pickle
-from scipy.spatial.distance import euclidean
-import pandas as pd
-import json
-import pytz
-from datetime import datetime, time
-from concurrent.futures import ProcessPoolExecutor
-import os
-import h5py
+from gluonts.dataset.common import ListDataset  # For creating GluonTS datasets
+import json  # For handling JSON data
+import numpy as np  # For numerical operations
+from pathlib import Path  # For handling file paths
+import pandas as pd  # For data manipulation
+import matplotlib.pyplot as plt  # For plotting
+import matplotlib.dates as mdates  # For handling dates in plots
+from datetime import datetime, time  # For date and time operations
+import pytz  # For timezone handling
+import matplotlib  # For plotting configurations
+from gluonts.dataset.common import TrainDatasets, MetaData, CategoricalFeatureInfo  # For GluonTS dataset metadata
+import os  # For operating system interactions
+import pickle  # For serializing objects
+from scipy.spatial.distance import euclidean  # For calculating Euclidean distance
+from concurrent.futures import ProcessPoolExecutor  # For parallel processing
+import zipfile  # Add this import at the beginning of your script
 
+
+# Define the prediction length
 prediction_length = 360
 
 # Function to filter, prepare data, and plot
@@ -49,8 +46,8 @@ def filter_prepare_and_plot_data(df):
     df = df.set_index('time')
     
     # Plotting function
-    plt.figure(figsize=(15, 8))
-    colors = plt.cm.viridis(np.linspace(0, 1, len(df['date'].unique())))
+    plt.figure(figsize=(15, 8))  # Set the figure size
+    colors = plt.cm.viridis(np.linspace(0, 1, len(df['date'].unique())))  # Generate colors for each unique date
     reference_date = datetime(2000, 1, 1)  # Arbitrary non-leap year date
 
     for i, (date, group) in enumerate(df.groupby(df['date'])):
@@ -61,69 +58,89 @@ def filter_prepare_and_plot_data(df):
             plt.plot(times, normalized_prices, label=f'{date}', color=colors[i])
 
     # Formatting the plot
-    plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=1))
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    plt.gcf().autofmt_xdate()  # Rotation
-    plt.title('Normalized Price Time Series for Each Day')
-    plt.xlabel('Time of Day')
-    plt.ylabel('Normalized Price')
-    plt.legend(title='Date')
-    plt.show()
+    plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Set major ticks to every hour
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))  # Format x-axis labels as hours and minutes
+    plt.gcf().autofmt_xdate()  # Rotate x-axis labels for better readability
+    plt.title('Normalized Price Time Series for Each Day')  # Set plot title
+    plt.xlabel('Time of Day')  # Set x-axis label
+    plt.ylabel('Normalized Price')  # Set y-axis label
+    plt.legend(title='Date')  # Add legend with title
+    plt.show()  # Display the plot
     
     return df
 
 # Function to create ListDataset
-def create_list_datasets(df, freq='T'):
-    train_datasets = []
-    test_datasets = []
+def create_list_datasets(df, freq='T', train_ratio=0.6, val_ratio=0.2):
+    """
+    Create ListDataset objects for training, validation, and testing.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the time series data.
+        freq (str): The frequency of the time series data.
+        train_ratio (float): The ratio of data to be used for training.
+        val_ratio (float): The ratio of data to be used for validation.
+
+    Returns:
+        tuple: A tuple containing ListDataset objects for training, validation, and testing.
+    """
+    train_datasets = []  # List to hold training datasets
+    val_datasets = []  # List to hold validation datasets
+    test_datasets = []  # List to hold testing datasets
 
     # Group by the 'datetime' column's date part
     df['date'] = df['datetime'].dt.date
-    unique_dates = df['date'].unique()
-    
-    # Determine the split index
-    split_index = int(len(unique_dates) * 0.7)
-    
-    # Split the dates into training and testing sets
-    train_dates = unique_dates[:split_index]
-    test_dates = unique_dates[split_index:]
-    
+    unique_dates = df['date'].unique()  # Get unique dates
+
+    # Determine the split indices
+    train_split_index = int(len(unique_dates) * train_ratio)
+    val_split_index = int(len(unique_dates) * (train_ratio + val_ratio))
+
+    # Split the dates into training, validation, and testing sets
+    train_dates = unique_dates[:train_split_index]
+    val_dates = unique_dates[train_split_index:val_split_index]
+    test_dates = unique_dates[val_split_index:]
+
     # Process training data
     for date in train_dates:
         group = df[df['date'] == date]
-        group = group.sort_values(by='datetime')
-        
-        # Print out the series and the corresponding day
-        #print(f"Training Series for {date}:")
-        #print(group[['normalized_price']])
-        
+        group = group.sort_values(by='datetime')  # Sort by datetime
+
+        # Create a dictionary for the training dataset
         train_ds = {'target': group['normalized_price'].values, 'start': str(group['datetime'].iloc[0]), 'item_id': str(date)}
         train_datasets.append(train_ds)
-    
+
+    # Process validation data
+    for date in val_dates:
+        group = df[df['date'] == date]
+        group = group.sort_values(by='datetime')  # Sort by datetime
+
+        # Create a dictionary for the validation dataset
+        val_ds = {'target': group['normalized_price'].values, 'start': str(group['datetime'].iloc[0]), 'item_id': str(date)}
+        val_datasets.append(val_ds)
+
     # Process testing data
     for date in test_dates:
         group = df[df['date'] == date]
-        group = group.sort_values(by='datetime')
-        
-        # Print out the series and the corresponding day
-        #print(f"Testing Series for {date}:")
-        #print(group[['normalized_price']])
-        
+        group = group.sort_values(by='datetime')  # Sort by datetime
+
+        # Create a dictionary for the testing dataset
         test_ds = {'target': group['normalized_price'].values, 'start': str(group['datetime'].iloc[0]), 'item_id': str(date)}
         test_datasets.append(test_ds)
-    # Report the number of unique days in train and test datasets
+
+    # Report the number of unique days in train, val, and test datasets
     num_train_days = len(train_dates)
+    num_val_days = len(val_dates)
     num_test_days = len(test_dates)
     print(f"Number of training days: {num_train_days}")
+    print(f"Number of validation days: {num_val_days}")
     print(f"Number of testing days: {num_test_days}")
 
-    return ListDataset(train_datasets, freq=freq), ListDataset(test_datasets, freq=freq)
-
+    return ListDataset(train_datasets, freq=freq), ListDataset(val_datasets, freq=freq), ListDataset(test_datasets, freq=freq)
 
 
 # Function to convert dataset to DataFrame
 def dataset_to_dataframe(dataset):
-    df_list = []
+    df_list = []  # List to hold DataFrames
     for entry in dataset:
         # Explicitly convert start date from Period to Timestamp if necessary
         start_date = entry['start']
@@ -132,20 +149,20 @@ def dataset_to_dataframe(dataset):
         elif isinstance(start_date, str):
             start_date = pd.to_datetime(start_date)
         
+        # Create a DataFrame for the series
         series_df = pd.DataFrame({
             'date': pd.date_range(start=start_date, periods=len(entry['target']), freq='T'),
             'value': entry['target'],
             'series_id': entry['item_id']
         })
         df_list.append(series_df)
-    return pd.concat(df_list, ignore_index=True)
-
+    return pd.concat(df_list, ignore_index=True)  # Concatenate all DataFrames
 
 # Function to plot price time series for each day
 def dataset_plot(dataset, ax, title):
-    df = dataset_to_dataframe(dataset)
-    unique_dates = df['date'].dt.date.unique()
-    colors = plt.cm.viridis(np.linspace(0, 1, len(unique_dates)))
+    df = dataset_to_dataframe(dataset)  # Convert dataset to DataFrame
+    unique_dates = df['date'].dt.date.unique()  # Get unique dates
+    colors = plt.cm.viridis(np.linspace(0, 1, len(unique_dates)))  # Generate colors for each unique date
 
     # Create a reference date for all times to be plotted on the same x-axis
     reference_date = datetime(2000, 1, 1)  # Arbitrary non-leap year date
@@ -161,13 +178,14 @@ def dataset_plot(dataset, ax, title):
     # Formatting the plot
     ax.set_xlim([mdates.date2num(datetime.combine(reference_date, datetime.min.time())) + 1/1440,  # 12:01 AM
                  mdates.date2num(datetime.combine(reference_date, datetime.min.time())) + 15/24])  # 3:00 PM
-    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    ax.set_title(title)
-    ax.set_xlabel('Time of Day')
-    ax.set_ylabel('Price')
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Set major ticks to every hour
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))  # Format x-axis labels as hours and minutes
+    ax.set_title(title)  # Set plot title
+    ax.set_xlabel('Time of Day')  # Set x-axis label
+    ax.set_ylabel('Price')  # Set y-axis label
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")  # Rotate x-axis labels for better readability
 
+# Function to create training datasets
 def create_train_datasets(train_dataset, test_dataset, freq, prediction_length):
     metadata = MetaData(
         freq=freq,
@@ -186,9 +204,10 @@ def create_train_datasets(train_dataset, test_dataset, freq, prediction_length):
     
     return datasets
 
+# Function to create metadata
 def create_metadata():
-    freq = "T"
-    path = Path("data")
+    freq = "T"  # Frequency of the data
+    path = Path("data")  # Path to save metadata
     
     # Ensure the directory exists
     path.mkdir(parents=True, exist_ok=True)
@@ -209,11 +228,13 @@ def create_metadata():
         "test": "test"
     }
     
+    # Save metadata to a JSON file
     with open(path / "metadata.json", "w") as f:
         json.dump(metadata, f)
 
-def json_to_df(file_path ):
-    verbose=True
+# Function to convert JSON to DataFrame
+def json_to_df(file_path):
+    verbose = True  # Verbose flag for printing progress
     if verbose:
         print(f"Reading JSON file from: {file_path}")
     
@@ -303,11 +324,11 @@ def json_to_df(file_path ):
         print(f"The dataset contains data for {df['date'].nunique()} unique days.")
 
     return df
-#########  PLotting    ######
 
+# Function to plot DataFrame
 def df_plot(df):
-    plt.figure(figsize=(15, 8))
-    colors = plt.cm.viridis(np.linspace(0, 1, len(df['date'].unique())))
+    plt.figure(figsize=(15, 8))  # Set the figure size
+    colors = plt.cm.viridis(np.linspace(0, 1, len(df['date'].unique())))  # Generate colors for each unique date
 
     print('starting to plot')
     # Create a reference date for all times to be plotted on the same x-axis
@@ -324,20 +345,17 @@ def df_plot(df):
         plt.plot(times, group['normalized_price'], label=f'{date}', color=colors[i])
 
     # Formatting the plot
-    plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=1))
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    plt.gcf().autofmt_xdate()  # Rotation
-    plt.title('Normalized Price Time Series for Each Day')
-    plt.xlabel('Time of Day')
-    plt.ylabel('Normalized Price')
-    #plt.legend(title='Date')
-    plt.show()
+    plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Set major ticks to every hour
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))  # Format x-axis labels as hours and minutes
+    plt.gcf().autofmt_xdate()  # Rotate x-axis labels for better readability
+    plt.title('Normalized Price Time Series for Each Day')  # Set plot title
+    plt.xlabel('Time of Day')  # Set x-axis label
+    plt.ylabel('Normalized Price')  # Set y-axis label
+    plt.show()  # Display the plot
 
-
+# Function to plot predictions
 def predict_plot(df):
- 
-
-    num_days_to_keep = 2
+    num_days_to_keep = 2  # Number of similar days to keep
 
     # Define the time range for comparison and full day plotting
     end_time = time(9, 45)
@@ -361,7 +379,6 @@ def predict_plot(df):
     # Select the sample day's normalized prices using ts_event
     sample_date = pd.Timestamp('2024-03-19').date()
 
-
     if sample_date not in normalized_prices_by_day:
         # If no data is available at 9:30 for the sample day, handle the case
         print("No data available at 9:30 for sample day.")
@@ -378,8 +395,6 @@ def predict_plot(df):
                 distance = np.linalg.norm(sample_normalized_prices - normalized_prices)
                 similarity_scores[date] = distance
 
-
- 
     similar_days = sorted(similarity_scores, key=similarity_scores.get)[:num_days_to_keep]
     # Define a reference date for plotting
     reference_date = datetime(2000, 1, 1)  # Arbitrary fixed date for time alignment in plots
@@ -416,38 +431,44 @@ if __name__ == "__main__":
     
     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
     # Define the file path variable
-    #json_file_path = 'stock_data/es-6month-1min.json'
-    json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+    json_file_path = 'stock_data/es-6month-1min.json'
+    #json_file_path = 'stock_data_ignored\es-10yr-1min.json'
 
 
     # Load or receive DataFrame from databento.py
     df = json_to_df(json_file_path)  
     #df = json_to_df('stock_data\es-10yr-1min.json')  # Assuming json_to_df is imported from databento.py
     df_filtered = filter_prepare_and_plot_data(df)
-    train_datasets, test_datasets = create_list_datasets(df_filtered)
+    # Assuming df_filtered is already defined and contains the filtered data
+    train_datasets, val_datasets, test_datasets = create_list_datasets(df_filtered)
 
+
+    # Create and save metadata
     # Create and save metadata
     create_metadata()
 
     # Convert datasets to DataFrame for reporting
     train_df = dataset_to_dataframe(train_datasets)
+    val_df = dataset_to_dataframe(val_datasets)
     test_df = dataset_to_dataframe(test_datasets)
 
-    # Report the number of unique days in train and test datasets
+    # Report the number of unique days in train, val, and test datasets
     num_train_days = train_df['date'].dt.date.nunique()
+    num_val_days = val_df['date'].dt.date.nunique()
     num_test_days = test_df['date'].dt.date.nunique()
-    # print(f"Number of training days: {num_train_days}")
-    # print(f"Number of testing days: {num_test_days}")
+    print(f"Number of training days: {num_train_days}")
+    print(f"Number of validation days: {num_val_days}")
+    print(f"Number of testing days: {num_test_days}")
 
-    # # Plot the train and test series on a new figure with subplots
-    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 16))
-    # dataset_plot(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
-    # dataset_plot(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
-    # plt.show()
+    # Plot the train, val, and test series on a new figure with subplots
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 24))
+    dataset_plot(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
+    dataset_plot(val_datasets, ax2, title='Normalized Price Time Series for Validation Data')
+    dataset_plot(test_datasets, ax3, title='Normalized Price Time Series for Testing Data')
+    plt.show()
 
+    # Create training datasets
     datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
-    import pickle
-    import zipfile
 
     # Save the datasets to a pickle file
     os.makedirs('pickle', exist_ok=True)
