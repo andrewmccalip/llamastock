@@ -17,25 +17,30 @@ from databento import json_to_df
 from llama_tuning import *
 
 # Add the cloned repository to the system path
-sys.path.append(os.path.abspath('./lag-llama'))
+#sys.path.append(os.path.abspath('./lag-llama'))
 
 # Import the LagLlamaEstimator after adding the repository to the path
-from lag_llama.gluon.estimator import LagLlamaEstimator
+#from lag_llama.gluon.estimator import LagLlamaEstimator
 
 
-def initialize():  #one time to prepare the environment
-    subprocess.run(["git", "clone", "https://github.com/time-series-foundation-models/lag-llama/"])
+def initialize():
+    git_executable = r"C:\Program Files\Git\cmd\git.exe"  # Update this path based on your installation
+    subprocess.run([git_executable, "clone", "https://github.com/time-series-foundation-models/lag-llama/"])
     # Install requirements
     subprocess.run(["pip", "install", "-r", "lag-llama/requirements.txt"])
-    sys.path.append(os.path.abspath('./lag-llama')) # Add the cloned repository to the system path
-    from lag_llama.gluon.estimator import LagLlamaEstimator
-    subprocess.run(["huggingface-cli", "download", "time-series-foundation-models/Lag-Llama", "lag-llama.ckpt", "--local-dir", "lag-llama"])# Download the model checkpoint
-    subprocess.run(["git", "config", "--global", "user.name", "Andrew McCalip"])
-    subprocess.run(["git", "config", "--global", "user.email", "Andrew McCalip"])
+    sys.path.append(os.path.abspath('./lag-llama'))  # Add the cloned repository to the system path
+    subprocess.run(["huggingface-cli", "download", "time-series-foundation-models/Lag-Llama", "lag-llama.ckpt", "--local-dir", "lag-llama"])  # Download the model checkpoint
+    subprocess.run([git_executable, "config", "--global", "user.name", "Andrew McCalip"])
+    subprocess.run([git_executable, "config", "--global", "user.email", "Andrew McCalip"])
 
-    
-def get_lag_llama_predictions(dataset, prediction_length, context_length, num_samples, device="cuda", batch_size=64, nonnegative_pred_samples=True):
-    ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
+# Ensure the repository is cloned and path is added before importing LagLlamaEstimator
+#initialize()
+sys.path.append(os.path.abspath('./lag-llama'))  # Ensure the path is added
+from lag_llama.gluon.estimator import LagLlamaEstimator
+ 
+
+def get_lag_llama_predictions(dataset, prediction_length, context_length, num_samples, device="cpu", batch_size=64, nonnegative_pred_samples=True):
+    ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=torch.device('cpu'))
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
     estimator = LagLlamaEstimator(
@@ -120,8 +125,8 @@ def forcast():
     context_length = 950  # 600 minutes (10 hours)
     prediction_length = 150  # 360 minutes (6 hours)
     num_samples = 1  # Number of sample paths to generate
-    device = "cuda"  # Use GPU if available
-
+    #device = "cuda"  # Use GPU if available
+    device = "CPU"  # Use GPU if available
     #TSS is the time series. 
     forecasts, tss = get_lag_llama_predictions(
         datasets.test,
