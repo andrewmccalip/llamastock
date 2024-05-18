@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import subprocess
-import shutil
+
 import os
 import sys
 from itertools import islice
@@ -14,6 +14,9 @@ from gluonts.dataset.pandas import PandasDataset
 import pandas as pd
 import pickle
 from data_prep import *
+import zipfile
+import pickle
+
 
 # Add the cloned repository to the system path
 sys.path.append(os.path.abspath('./lag-llama'))
@@ -169,97 +172,153 @@ def plot_forcast():
 def finetune(datasets):
     print('Starting fine tuning')
     # Fine-tuning
-    device = "cuda"  # Use GPU if available
+    device = "cuda" if torch.cuda.is_available() else "cpu"  # Use GPU if available
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
     estimator = LagLlamaEstimator(
-            ckpt_path="lag-llama/lag-llama.ckpt",
-            prediction_length=prediction_length,
-            context_length=context_length,
+        ckpt_path="lag-llama/lag-llama.ckpt",
+        prediction_length=prediction_length,
+        context_length=context_length,
 
-            # distr_output="neg_bin",
-            scaling="mean",
-            nonnegative_pred_samples=True,
-            aug_prob=0,
-            lr=5e-4,
+        # distr_output="neg_bin",
+        scaling="mean",
+        nonnegative_pred_samples=True,
+        aug_prob=0,
+        lr=5e-4,
 
-            # estimator args
-            input_size=estimator_args["input_size"],
-            n_layer=estimator_args["n_layer"],
-            n_embd_per_head=estimator_args["n_embd_per_head"],
-            n_head=estimator_args["n_head"],
-            time_feat=estimator_args["time_feat"],
+        # estimator args
+        input_size=estimator_args["input_size"],
+        n_layer=estimator_args["n_layer"],
+        n_embd_per_head=estimator_args["n_embd_per_head"],
+        n_head=estimator_args["n_head"],
+        time_feat=estimator_args["time_feat"],
 
-            # rope_scaling={
-            #     "type": "linear",
-            #     "factor": max(1.0, (context_length + prediction_length) / estimator_args["context_length"]),
-            # },
+        # rope_scaling={
+        #     "type": "linear",
+        #     "factor": max(1.0, (context_length + prediction_length) / estimator_args["context_length"]),
+        # },
 
-            batch_size=64,
-            num_parallel_samples=num_samples,
-            trainer_kwargs = {"max_epochs": 2,}, # <- lightning trainer arguments
-        )
+        batch_size=64,
+        num_parallel_samples=num_samples,
+        trainer_kwargs={"max_epochs": 500,},  # <- lightning trainer arguments
+    )
 
-    predictor = estimator.train(datasets.train, cache_data=True, shuffle_buffer_length=7000)
+    # Create a Trainer without callbacks
+    trainer = Trainer(
+        max_epochs=500,
+        gpus=1 if torch.cuda.is_available() else 0,  # Use GPU if available
+    )
+
+    # Train the model and manually save checkpoints
+    for epoch in range(trainer.max_epochs):
+        trainer.fit(estimator, datasets['train'])
+        checkpoint_path = f'checkpoints/model-epoch={epoch:02d}.ckpt'
+        trainer.save_checkpoint(checkpoint_path)
+        print(f"Checkpoint saved at {checkpoint_path}")
+
     print('Done fine tuning')
+    return estimator
+
+
+def load_checkpoint_and_forecast(checkpoint_path, dataset, prediction_length, context_length, num_samples, device="cpu", batch_size=64, nonnegative_pred_samples=True):
+    # Load the checkpoint
+    ckpt = torch.load(checkpoint_path, map_location=device)
+    estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
+
+    # Create the estimator with the loaded checkpoint
+    estimator = LagLlamaEstimator(
+        ckpt_path=checkpoint_path,
+        prediction_length=prediction_length,
+        context_length=context_length,
+
+        # estimator args
+        input_size=estimator_args["input_size"],
+        n_layer=estimator_args["n_layer"],
+        n_embd_per_head=estimator_args["n_embd_per_head"],
+        n_head=estimator_args["n_head"],
+        scaling=estimator_args["scaling"],
+        time_feat=estimator_args["time_feat"],
+
+        nonnegative_pred_samples=nonnegative_pred_samples,
+
+        # linear positional encoding scaling
+        rope_scaling={
+            "type": "linear",
+            "factor": max(1.0, (context_length + prediction_length) / estimator_args["context_length"]),
+        },
+
+        batch_size=batch_size,
+        num_parallel_samples=num_samples,
+    )
+
+    # Create the predictor
+    lightning_module = estimator.create_lightning_module()
+    transformation = estimator.create_transformation()
+    predictor = estimator.create_predictor(transformation, lightning_module)
+
+    # Make predictions
     forecast_it, ts_it = make_evaluation_predictions(
-            dataset=datasets.test,
-            predictor=predictor,
-            num_samples=num_samples
-        )
+        dataset=dataset,
+        predictor=predictor,
+        num_samples=num_samples
+    )
+    forecasts = list(tqdm(forecast_it, total=len(dataset), desc="Forecasting batches"))
+    tss = list(tqdm(ts_it, total=len(dataset), desc="Ground truth"))
 
-    print('Startin forecasting')
-    forecasts = list(tqdm(forecast_it, total=len(datasets), desc="Forecasting batches"))
-    print('Done forecasting')
-    tss = list(tqdm(ts_it, total=len(datasets), desc="Ground truth"))
-
-   
-
-    evaluator = Evaluator()
-    agg_metrics, ts_metrics = evaluator(iter(tss), iter(forecasts))
-
-    print(agg_metrics)
-    return forecasts,tss
-
-
+    return forecasts, tss
 
 if __name__ == "__main__":
     #initialize()
-   forecasts = None
-   tss = None
+    forecasts = None
+    tss = None
 
-   import zipfile
+    # # Path to the zip file
+    # zip_file_path = 'pickle/df_imported_stock_data.zip'
+    # extract_to_path = 'pickle/'
 
-   # Path to the zip file
-   zip_file_path = 'pickle/datasets_10yr_imported_stock_data.zip'
-   extract_to_path = 'pickle/'
+    # # Unzip the file
+    # with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+    #     zip_ref.extractall(extract_to_path)
+    # print(f"Unzipped {zip_file_path} to {extract_to_path}")
 
-   # Unzip the file
-   with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-       zip_ref.extractall(extract_to_path)
-   print(f"Unzipped {zip_file_path} to {extract_to_path}")
+    with open('pickle/datasets_imported_stock_data.pkl', 'rb') as f:
+        datasets = pickle.load(f)
+        #file_size = os.path.getsize('pickle/df_10yr_imported_stock_data.pkl')
+        #print(f"Size of the loaded file: {file_size} bytes")
 
-   with open('pickle/datasets_10yr_imported_stock_data.pkl', 'rb') as f:
-    datasets = pickle.load(f)
-       
-   
-
-    # ####Zero shot
+    #####Zero shot
     # forecasts, tss = forcast(datasets)  #executes prediction lag-llama model - untrained
     # # Save the forecasts and tss to a pickle file in a folder called pickle
     # os.makedirs('pickle', exist_ok=True)
     # with open('pickle/zeroshot_forecasts_tss.pkl', 'wb') as f:
     #     pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
     #     print("Zero shot forecasts have been saved to 'pickle/forecasts_tss.pkl'")
-  
 
-
-
-    forecasts,tss = finetune(datasets)
+    #fine tun model
+    forecasts, tss = finetune(datasets)
     with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
-            pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-            print("Fine tuned forecasts  to 'pickle/tuned_forecasts_tss.pkl'")
+        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+        print("Fine tuned forecasts have been saved to 'pickle/tuned_forecasts_tss.pkl'")
 
+    
+    
+    #######Forcast with fine tuned model 
+    # Path to the fine-tuned checkpoint
+    checkpoint_path = 'lightning_logs/version_4/checkpoints/epoch=494-step=24750.ckpt'
 
-  
+    # Forecast using the fine-tuned checkpoint
+    forecasts, tss = load_checkpoint_and_forecast(
+        checkpoint_path=checkpoint_path,
+        dataset=datasets['test'],
+        prediction_length=datasets['metadata']['prediction_length'],
+        context_length=context_length,
+        num_samples=num_samples,
+        device="cpu"  # Use CPU
+    )
+
+    # Save the forecasts and tss to a pickle file in a folder called pickle
+    os.makedirs('pickle', exist_ok=True)
+    with open('pickle/forecasts_tss.pkl', 'wb') as f:
+        pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
+        print("Forecasts and time series have been saved to 'pickle/forecasts_tss.pkl'")
