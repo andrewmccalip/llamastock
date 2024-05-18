@@ -204,7 +204,7 @@ def finetune(datasets):
 
             batch_size=64,
             num_parallel_samples=num_samples,
-            trainer_kwargs = {"max_epochs": 3,}, # <- lightning trainer arguments
+            trainer_kwargs = {"max_epochs": 100,}, # <- lightning trainer arguments
         )
 
     # Print the number of series in the train and test datasets
@@ -413,8 +413,8 @@ if __name__ == "__main__":
 
 
 
-    ### Step 2: fine tune model
-    #forecasts, tss = finetune(datasets)
+    ## Step 2: fine tune model
+    forecasts, tss = finetune(datasets)
    
 
     
