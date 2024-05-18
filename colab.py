@@ -9,6 +9,7 @@ import torch
 from gluonts.evaluation import make_evaluation_predictions, Evaluator
 from gluonts.dataset.repository.datasets import get_dataset
 from gluonts.dataset.pandas import PandasDataset
+
 import pandas as pd
 import pickle
 from data_prep import *
@@ -28,7 +29,7 @@ sys.path.append(os.path.abspath('./lag-llama'))
 
 # Import the LagLlamaEstimator after adding the repository to the path
 from lag_llama.gluon.estimator import LagLlamaEstimator
-
+from lag_llama.gluon.estimator import ValidationSplitSampler
 
 context_length = 950  # 600 minutes (10 hours)
 prediction_length = 360  # 360 minutes (6 hours)
@@ -94,39 +95,6 @@ def get_lag_llama_predictions(dataset, prediction_length, context_length, num_sa
 
     return forecasts, tss
 
-def prepare_df():
-        # Load or receive DataFrame from databento.py
-    df = json_to_df('stock_data\es-6month-1min.json')  # Assuming json_to_df is imported from databento.py
-    df_filtered = filter_prepare_and_plot_data(df)
-    train_datasets,test_datasets = create_list_datasets(df_filtered)
-
-    # Create and save metadata
-    create_metadata()
-
-    # Convert datasets to DataFrame for reporting
-    train_df = dataset_to_dataframe(train_datasets)
-    test_df = dataset_to_dataframe(test_datasets)
-
-    # Report the number of unique days in train and test datasets
-    num_train_days = train_df['date'].dt.date.nunique()
-    num_test_days = test_df['date'].dt.date.nunique()
-    print(f"Number of training days: {num_train_days}")
-    print(f"Number of testing days: {num_test_days}")
-
-    # Plot the train and test series on a new figure with subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 16))
-
-    # Plot train data
-    plot_prices(train_datasets, ax1, title='Normalized Price Time Series for Training Data')
-
-    # Plot test data
-    plot_prices(test_datasets, ax2, title='Normalized Price Time Series for Testing Data')
-
-    plt.tight_layout()
-    plt.show()
-
-    datasets = create_train_datasets(train_datasets, test_datasets, freq="H", prediction_length=360)
-
 
 def forcast(datasets):
    
@@ -174,20 +142,28 @@ def plot_forcast():
 
 
 
-def split_train_validation(datasets, validation_size=0.2):
-    # Split the training dataset into training and validation sets
-    train_data, val_data = train_test_split(datasets.train, test_size=validation_size, random_state=42)
-    # Return the training and validation datasets separately
+def split_train_validation(datasets, validation_ratio=0.2):
+    validation_sampler = ValidationSplitSampler(min_future=prediction_length)
+    
+    train_data = []
+    val_data = []
+    for entry in datasets.train:
+        # Extract the time series data from the entry
+        ts = entry['target']
+        if validation_sampler(ts):
+            val_data.append(entry)
+        else:
+            train_data.append(entry)
+    
     return TrainDatasets(metadata=datasets.metadata, train=train_data, test=datasets.test), val_data
 
 
 def finetune(datasets, val_data):
     print('Starting fine tuning')
-    device = "cuda" if torch.cuda.is_available() else "cpu"  # Use GPU if available, else use CPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     ckpt = torch.load("lag-llama/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
-    # Initialize the LagLlamaEstimator with the loaded checkpoint and hyperparameters
     estimator = LagLlamaEstimator(
         ckpt_path="lag-llama/lag-llama.ckpt",
         prediction_length=prediction_length,
@@ -204,25 +180,12 @@ def finetune(datasets, val_data):
         trainer_kwargs={"max_epochs": 100},
     )
 
-    # Print the number of series in the train, validation, and test datasets
-    print(f"Number of series in the training dataset: {len(datasets.train)}")
-    print(f"Number of series in the validation dataset: {len(val_data)}")
-    print(f"Number of series in the testing dataset: {len(datasets.test)}")
-
-    try:
-        # Train the estimator on the training dataset with validation data
-        predictor = estimator.train(
-            training_data=datasets.train,
-            validation_data=val_data,
-            cache_data=True,
-            shuffle_buffer_length=7000
-        )
-    except Exception as e:
-        # Print error and data entries if training fails
-        print(f"Error during training: {e}")
-        for data_entry in datasets.train:
-            print(data_entry)
-        raise
+    predictor = estimator.train(
+        training_data=datasets.train,
+        validation_data=val_data,
+        cache_data=True,
+        shuffle_buffer_length=7000
+    )
 
     print('Done fine tuning')
 
@@ -402,17 +365,9 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
-     # Load the datasets
     datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
-    # Split the training dataset into training and validation sets
-    datasets, val_data = split_train_validation(datasets)
-
-    # Fine-tune the model with the datasets that now include a validation set
-    predictor = finetune(datasets, val_data)
-
-
-    ## Step 2: fine tune model
-    forecasts, tss = finetune(datasets)
+    datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
+    forecasts, tss = finetune(datasets, val_data)
    
 
     
