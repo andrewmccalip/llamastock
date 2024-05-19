@@ -4,6 +4,7 @@ import matplotlib.dates as mdates
 from itertools import islice
 import pandas as pd
 import random
+import numpy as np
 
 # Global variables to store forecasts and time series data
 global forecasts, tss
@@ -56,7 +57,7 @@ def smooth_series(series, window_size):
     return series.rolling(window=window_size, min_periods=1).mean()
 
 
-def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples, smoothing_window=3):
+def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples):
     """
     Plot the time series data along with forecasts.
 
@@ -66,7 +67,6 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
     context_length (int): Length of the context window.
     prediction_length (int): Length of the prediction window.
     max_samples (int): Maximum number of samples to plot.
-    smoothing_window (int): Window size for smoothing the forecast series.
     """
     plt.figure(figsize=(20, 15))
     date_formatter = mdates.DateFormatter('%H:%M')  # Format to display hours and minutes
@@ -82,7 +82,6 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
     n_cols = 3
     n_rows = (max_samples + n_cols - 1) // n_cols  # This ensures enough rows to fit max_samples subplots
 
-    # Iterate through the randomly selected series, and plot the predicted samples
     for idx, random_idx in enumerate(random_indices):
         forecast = forecasts[random_idx]
         ts = tss[random_idx]
@@ -113,30 +112,45 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
         context_series = ts[context_start_idx:context_end_idx]
         ground_truth_series = ts[ground_truth_start_idx:ground_truth_end_idx]
 
-        # Apply smoothing to the forecast series
+        # Create forecast series
         forecast_start_idx = ground_truth_start_idx
         forecast_end_idx = forecast_start_idx + pd.Timedelta(minutes=len(forecast.mean) - 1)
         forecast_index = pd.date_range(start=forecast_start_idx, end=forecast_end_idx, freq='T')
         forecast_series = pd.Series(forecast.mean, index=forecast_index)
-        smoothed_forecast_series = smooth_series(forecast_series, smoothing_window)
 
         # Plot the context window
-        plt.plot(context_series.index, context_series, color='blue', label="context")
+        ax.plot(context_series.index, context_series, color='blue', label="context")
 
         # Plot the ground truth
-        plt.plot(ground_truth_series.index, ground_truth_series, color='red', label="ground truth")
+        ax.plot(ground_truth_series.index, ground_truth_series, color='red', label="ground truth")
 
-        # Plot the smoothed forecast
-        plt.plot(smoothed_forecast_series.index, smoothed_forecast_series, color='green', label="smoothed forecast")
+    
+        # Plot the forecast samples
+        forecast_samples = forecasts[random_idx].samples.real
+        mean_forecast = forecasts[random_idx].median
 
-          # Combine context and ground truth to set y-axis limits
+        # Generate a color map for the forecast samples
+        color_map = plt.cm.get_cmap('viridis', len(forecast_samples))
+
+        # Apply smoothing to the forecast samples
+        smoothed_lower_bound = pd.Series(forecast_samples[0], index=forecast_index).rolling(window=10, min_periods=1).mean()
+        smoothed_upper_bound = pd.Series(forecast_samples[-1], index=forecast_index).rolling(window=10, min_periods=1).mean()
+
+        # Plot the forecast samples as a shaded area
+        ax.fill_between(forecast_index, smoothed_lower_bound, smoothed_upper_bound, color='gray', alpha=0.3, label="forecast range")
+
+        # Plot the mean forecast as a dashed line
+        #ax.plot(forecast_index, mean_forecast, color='green', linestyle='--', label="forecast mean")
+
+        # Combine context and ground truth to set y-axis limits
         combined_series = pd.concat([context_series, ground_truth_series])
-        y_min, y_max = combined_series.min().min(), combined_series.max().max()
+        y_min, y_max = combined_series.min(), combined_series.max()
         y_range = y_max - y_min
         y_padding = y_range * 0.1
-        ax.set_ylim(y_min - y_padding, y_max + y_padding)
-         # Set x-axis limits to match the exact range of the context and forecast periods
-        ax.set_xlim(context_series.index[0], smoothed_forecast_series.index[-1])
+        ax.set_ylim((y_min - y_padding).item(), (y_max + y_padding).item())
+
+        # Set x-axis limits to match the exact range of the context and forecast periods
+        ax.set_xlim(context_series.index[0], forecast_series.index[-1])
 
         # Format the x-axis to show hours and minutes
         ax.xaxis.set_major_formatter(date_formatter)
@@ -146,10 +160,11 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
 
     # Adjust layout to prevent overlap
     plt.tight_layout()
-    plt.show()
-
+    plt.show()       
+        
 if __name__ == "__main__":
     # Load and plot fine-tuned predictions
     forecasts, tss = load_forecasts('pickle/tuned_forecasts_tss.pkl')
-    plot_time_series(forecasts, tss, context_length=960, prediction_length=360, max_samples=16)
+    plot_time_series(forecasts, tss, context_length=960, prediction_length=360, max_samples=6)
     print('done')
+
