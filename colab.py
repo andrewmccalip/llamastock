@@ -346,7 +346,7 @@ def load_checkpoint_and_forecast(checkpoint_path, datasets, prediction_length, c
 
     # Print aggregated metrics
     print(agg_metrics)
-    return forecasts, tss
+    return forecasts, tss 
 
 
 def load_pickle(zip_file_path, extract_to_path='pickle/'):
