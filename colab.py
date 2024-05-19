@@ -387,6 +387,7 @@ def load_pickle(zip_file_path, extract_to_path='pickle/'):
 
 def save_and_push_to_github(commit_message="Auto-generated commit after tuning "):
             try:
+                subprocess.run(["git", "pull"], check=True)
                 # Add all changes to the staging area
                 subprocess.run(["git", "add", "."], check=True)
                 
