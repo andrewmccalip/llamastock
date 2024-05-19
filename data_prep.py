@@ -18,7 +18,7 @@ import zipfile  # Add this import at the beginning of your script
 
 
 # Define the prediction length
-prediction_length = 360
+prediction_length = 120
 
 # Function to filter, prepare data, and plot
 def filter_prepare_and_plot_data(df):
@@ -501,12 +501,17 @@ if __name__ == "__main__":
     matplotlib.use('TkAgg')  # Use TkAgg backend for interactive plotting
 
     # Define the file path variable
-    #json_file_path = 'stock_data/es-6month-1min.json'
-    
-    json_file_path = 'stock_data/fake_waves.json'
+    json_file_path = 'stock_data/es-6month-1min.json'
+    #json_file_path = 'stock_data_ignored\es-10yr-1min.json'
+    #json_file_path = 'stock_data/fake_waves.json'
     # Load or receive DataFrame from databento.py
-    #df = json_to_df(json_file_path)
-    df = fake_wave_data()
+    df = json_to_df(json_file_path)
+
+
+
+    #df = fake_wave_data()  #unsupress for sine wave data a
+    
+    
     df_filtered = filter_prepare_and_plot_data(df)
    
     # Create ListDataset objects for training, validation, and testing
@@ -536,7 +541,7 @@ if __name__ == "__main__":
     plt.show()
 
     # Create training datasets
-    datasets = create_train_datasets(train_datasets, val_datasets, test_datasets, freq="H", prediction_length=360)
+    datasets = create_train_datasets(train_datasets, val_datasets, test_datasets, freq="H", prediction_length=prediction_length)
 
     # Save the datasets to a pickle file
     os.makedirs('pickle', exist_ok=True)

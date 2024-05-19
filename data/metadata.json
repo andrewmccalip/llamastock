@@ -1,1 +1,1 @@
-{"freq": "T", "prediction_length": 360, "feat_static_cat": [{"name": "feat_static_cat", "cardinality": "1"}], "feat_static_real": [], "feat_dynamic_real": [], "feat_dynamic_cat": [], "train": "train", "test": "test"}
+{"freq": "T", "prediction_length": 120, "feat_static_cat": [{"name": "feat_static_cat", "cardinality": "1"}], "feat_static_real": [], "feat_dynamic_real": [], "feat_dynamic_cat": [], "train": "train", "test": "test"}
