@@ -35,7 +35,7 @@ from lag_llama.gluon.estimator import LagLlamaEstimator
 from lag_llama.gluon.estimator import ValidationSplitSampler
 
 context_length = 950  # 600 minutes (10 hours)
-prediction_length = 360  # 360 minutes (6 hours)
+prediction_length = 120  # 360 minutes (6 hours)
 num_parallel_samples = 10  # Number of sample paths to generate
 
 
