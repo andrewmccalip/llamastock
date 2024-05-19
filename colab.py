@@ -36,7 +36,7 @@ from lag_llama.gluon.estimator import ValidationSplitSampler
 
 context_length = 950  # 600 minutes (10 hours)
 prediction_length = 360  # 360 minutes (6 hours)
-num_parallel_samples = 3  # Number of sample paths to generate
+num_parallel_samples = 20  # Number of sample paths to generate
 
 
 def initialize():
@@ -401,7 +401,7 @@ if __name__ == "__main__":
     #######Steo 3:Forcast with fine tuned model 
    # Path to the fine-tuned checkpoint
     checkpoint_path = 'lightning_logs/version_32/checkpoints/epoch=81-step=4100.ckpt'
-    max_series = 20  # Set the maximum number of series to forecast
+    max_series = 1  # Set the maximum number of series to forecast
     forecasts, tss = load_checkpoint_and_forecast(
         checkpoint_path=checkpoint_path,
         datasets=datasets,  # Pass the datasets object directly
