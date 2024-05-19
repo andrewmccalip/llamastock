@@ -118,29 +118,29 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
         forecast_index = pd.date_range(start=forecast_start_idx, end=forecast_end_idx, freq='T')
         forecast_series = pd.Series(forecast.mean, index=forecast_index)
 
+        # Calculate the difference between the first forecast point and the last context point
+        y_shift = context_series.iloc[-1] - forecast_series.iloc[0]
+        
+        # Shift the forecast series
+        forecast_series += y_shift
+
         # Plot the context window
         ax.plot(context_series.index, context_series, color='blue', label="context")
 
         # Plot the ground truth
         ax.plot(ground_truth_series.index, ground_truth_series, color='red', label="ground truth")
 
-    
+        # Plot the forecast series
+        ax.plot(forecast_series.index, forecast_series, color='green', label="forecast")
+
         # Plot the forecast samples
         forecast_samples = forecasts[random_idx].samples.real
         mean_forecast = forecasts[random_idx].median
 
-        # Generate a color map for the forecast samples
-        color_map = plt.cm.get_cmap('viridis', len(forecast_samples))
-
-        # Apply smoothing to the forecast samples
-        smoothed_lower_bound = pd.Series(forecast_samples[0], index=forecast_index).rolling(window=10, min_periods=1).mean()
-        smoothed_upper_bound = pd.Series(forecast_samples[-1], index=forecast_index).rolling(window=10, min_periods=1).mean()
-
-        # Plot the forecast samples as a shaded area
-        ax.fill_between(forecast_index, smoothed_lower_bound, smoothed_upper_bound, color='gray', alpha=0.3, label="forecast range")
-
-        # Plot the mean forecast as a dashed line
-        #ax.plot(forecast_index, mean_forecast, color='green', linestyle='--', label="forecast mean")
+        # Smooth the upper and lower bounds
+        lower_bound = pd.Series(forecasts[random_idx].quantile(0.4)).rolling(window=5, min_periods=1).mean()
+        upper_bound = pd.Series(forecasts[random_idx].quantile(0.6)).rolling(window=5, min_periods=1).mean()
+        ax.fill_between(forecast_index, lower_bound, upper_bound, color='gray', alpha=0.3, label="forecast range")
 
         # Combine context and ground truth to set y-axis limits
         combined_series = pd.concat([context_series, ground_truth_series])
