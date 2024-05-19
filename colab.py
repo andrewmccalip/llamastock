@@ -400,20 +400,20 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
-    #datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
-    datasets, file_size = load_pickle('pickle/fake_waves.zip', 'pickle/')
+    datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
+    #datasets, file_size = load_pickle('pickle/fake_waves.zip', 'pickle/')
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
     # # #the big call
-    # finetune(datasets, val_data,max_epochs=100)
+    #finetune(datasets, val_data,max_epochs=500)
    
 
     
     
     #######Steo 3:Forcast with fine tuned model 
    # Path to the fine-tuned checkpoint
-    checkpoint_path = 'lightning_logs/version_33/checkpoints/epoch=10-step=550.ckpt'
-    max_series = 2  # Set the maximum number of series to forecast
+    checkpoint_path = 'lightning_logs/version_34/checkpoints/epoch=379-step=19000.ckpt'
+    max_series = 9  # Set the maximum number of series to forecast
     forecasts, tss = load_checkpoint_and_forecast(
         checkpoint_path=checkpoint_path,
         datasets=datasets,  # Pass the datasets object directly
