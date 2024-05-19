@@ -36,7 +36,7 @@ from lag_llama.gluon.estimator import ValidationSplitSampler
 
 context_length = 950  # 600 minutes (10 hours)
 prediction_length = 360  # 360 minutes (6 hours)
-num_parallel_samples = 20  # Number of sample paths to generate
+num_parallel_samples = 3  # Number of sample paths to generate
 
 
 def initialize():
@@ -179,7 +179,7 @@ def finetune(datasets,val_data,max_epochs):
         ckpt_path="lag-llama/lag-llama.ckpt",
         prediction_length=prediction_length,
         context_length=context_length,
-        scaling="std",
+        scaling="mean",
         nonnegative_pred_samples=True,
         batch_size=64,
         num_parallel_samples=num_parallel_samples,
@@ -393,15 +393,15 @@ if __name__ == "__main__":
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
     # #the big call
-    # finetune(datasets, val_data,max_epochs=100)
+    #finetune(datasets, val_data,max_epochs=100)
    
 
     
     
     #######Steo 3:Forcast with fine tuned model 
    # Path to the fine-tuned checkpoint
-    checkpoint_path = 'lightning_logs/version_31/checkpoints/epoch=9-step=500.ckpt'
-    max_series = 9  # Set the maximum number of series to forecast
+    checkpoint_path = 'lightning_logs/version_32/checkpoints/epoch=81-step=4100.ckpt'
+    max_series = 20  # Set the maximum number of series to forecast
     forecasts, tss = load_checkpoint_and_forecast(
         checkpoint_path=checkpoint_path,
         datasets=datasets,  # Pass the datasets object directly
@@ -416,6 +416,6 @@ if __name__ == "__main__":
     #####Step 4: save the forecasts (time series) in their own picke for for further plotting in data_review.py 
     # Save the forecasts and tss to a pickle file in a folder called pickle
     os.makedirs('pickle', exist_ok=True)
-    with open('pickle/forecasts_tss.pkl', 'wb') as f:
+    with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
         pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
         print("Forecasts and time series have been saved to 'pickle/tuned_forecasts_tss.pkl'")
