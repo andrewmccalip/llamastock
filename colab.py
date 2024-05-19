@@ -36,7 +36,7 @@ from lag_llama.gluon.estimator import ValidationSplitSampler
 
 context_length = 950  # 600 minutes (10 hours)
 prediction_length = 360  # 360 minutes (6 hours)
-num_parallel_samples = 20  # Number of sample paths to generate
+num_parallel_samples = 10  # Number of sample paths to generate
 
 
 def initialize():
@@ -179,7 +179,7 @@ def finetune(datasets,val_data,max_epochs):
         ckpt_path="lag-llama/lag-llama.ckpt",
         prediction_length=prediction_length,
         context_length=context_length,
-        scaling="mean",
+        #scaling="mean",
         nonnegative_pred_samples=True,
         batch_size=64,
         num_parallel_samples=num_parallel_samples,
@@ -226,9 +226,21 @@ def finetune(datasets,val_data,max_epochs):
         epochs=max_epochs,
         learning_rate=1e-4,
         early_stopping=True,
-        checkpoint_callback=checkpoint_callback
+        checkpoint_callback=checkpoint_callback,
+        use_single_instance_sampler=True,
+        stratified_sampling="series",
+        data_normalization="robust",
+        n_layer=8,
+        n_head=9,
+        n_embd_per_head=16,
+        time_feat=True,
+        context_length=32,
+        aug_prob=0.5,
+        freq_mask_rate=0.5,
+        freq_mixing_rate=0.25,
+        weight_decay=0.0,
+        dropout=0.0
     )
-
     print('Done fine tuning')
     return predictor
 
@@ -392,16 +404,16 @@ if __name__ == "__main__":
     datasets, file_size = load_pickle('pickle/fake_waves.zip', 'pickle/')
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
-    # #the big call
-    #finetune(datasets, val_data,max_epochs=100)
+    # # #the big call
+    # finetune(datasets, val_data,max_epochs=100)
    
 
     
     
     #######Steo 3:Forcast with fine tuned model 
    # Path to the fine-tuned checkpoint
-    checkpoint_path = 'lightning_logs/version_32/checkpoints/epoch=81-step=4100.ckpt'
-    max_series = 1  # Set the maximum number of series to forecast
+    checkpoint_path = 'lightning_logs/version_33/checkpoints/epoch=10-step=550.ckpt'
+    max_series = 2  # Set the maximum number of series to forecast
     forecasts, tss = load_checkpoint_and_forecast(
         checkpoint_path=checkpoint_path,
         datasets=datasets,  # Pass the datasets object directly
