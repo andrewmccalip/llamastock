@@ -420,17 +420,17 @@ if __name__ == "__main__":
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
     
-    mode = 'test'
+    mode = 'all'
    
    
-    if mode == 'train':
+    if mode in ['train', 'all']:
         # Perform training operations
         print("Training mode selected.")
         finetune(datasets, val_data,max_epochs=3)  #the big call
    
 
     
-    if mode == 'predict':
+    if mode in ['predict', 'all']:
         #######Steo 3:Forcast with fine tuned model 
     # Path to the fine-tuned checkpoint
         checkpoint_path = 'lightning_logs/version_35-120min_context/checkpoints/epoch=1-step=100.ckpt'
@@ -458,5 +458,5 @@ if __name__ == "__main__":
 
        
 
-    if mode == 'test':  # Example usage
+    if mode in ['commit', 'all']:
         save_and_push_to_github("Auto-generated commit with forecasts and time series data")
