@@ -445,28 +445,27 @@ from scipy import signal
 
 def fake_wave_data():
     """
-    Generate a DataFrame with various waveforms (sine, cosine, square, sawtooth, triangular) for a specific date range.
+    Generate a DataFrame with various waveforms (sine, square, sawtooth) for a specific date range.
 
     Returns:
         pd.DataFrame: DataFrame containing datetime, date, time, and normalized_price columns.
     """
     # Generate a date range for the timestamps (150 days, 1-minute frequency)
-    date_range = pd.date_range(start='2024-03-01 00:00', end='2024-09-28 23:59', freq='T')
+    date_range = pd.date_range(start='2024-03-01 00:00', end='2024-06-28 23:59', freq='T')
     
     # Generate wave data with random amplitude, phase, and period alterations
     period = len(date_range)
     amplitude = 0.03 + 0.001 * np.random.randn()  # Randomly alter the amplitude by 0.001
     phase = np.random.uniform(0, 2 * np.pi)  # Random phase shift
-    period_factor = np.random.uniform(0.9, 1.1)  # Random period alteration within 10%
+    period_factor = np.random.uniform(0.5, 0.7)  # Random period alteration within 50% to 70%
     
     # Generate different waveforms
     t = np.arange(period)
     waveforms = {
-        'sine': lambda t: 1.0 + amplitude * np.sin(2 * np.pi * (1/60) * period_factor * t + phase),
-        'cosine': lambda t: 1.0 + amplitude * np.cos(2 * np.pi * (1/60) * period_factor * t + phase),
+        'sine': lambda t: 1.0 + amplitude * np.sin(2 * np.pi * (1/120) * period_factor * t + phase),
         'square': lambda t: 1.0 + amplitude * signal.square(2 * np.pi * (1/60) * period_factor * t + phase),
-        'sawtooth': lambda t: 1.0 + amplitude * signal.sawtooth(2 * np.pi * (1/60) * period_factor * t + phase),
-        'triangular': lambda t: 1.0 + amplitude * signal.sawtooth(2 * np.pi * (1/60) * period_factor * t + phase, 0.5)
+        'sawtooth': lambda t: 1.0 + amplitude * signal.sawtooth(2 * np.pi * (1/180) * period_factor * t + phase),
+        'low_period_sine': lambda t: 1.0 + amplitude * np.sin(2 * np.pi * (1/1000) * t + phase)  # Very low period sine wave
     }
     
     # Create a DataFrame with the generated data
@@ -489,7 +488,7 @@ def fake_wave_data():
         normalized_prices = np.concatenate((normalized_prices, day_wave))
     
     # Inject 5 percent noise into the wave data
-    noise = 0.002 * np.random.randn(period)
+    noise = 0.0015 * np.random.randn(period)
     normalized_prices += noise
     
     df_filtered['normalized_price'] = normalized_prices

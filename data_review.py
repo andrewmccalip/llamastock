@@ -55,7 +55,8 @@ def smooth_series(series, window_size):
     """
     return series.rolling(window=window_size, min_periods=1).mean()
 
-def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples, smoothing_window=10):
+
+def plot_time_series(forecasts, tss, context_length, prediction_length, max_samples, smoothing_window=3):
     """
     Plot the time series data along with forecasts.
 
@@ -128,30 +129,27 @@ def plot_time_series(forecasts, tss, context_length, prediction_length, max_samp
         # Plot the smoothed forecast
         plt.plot(smoothed_forecast_series.index, smoothed_forecast_series, color='green', label="smoothed forecast")
 
-        # Combine context and ground truth to set y-axis limits
+          # Combine context and ground truth to set y-axis limits
         combined_series = pd.concat([context_series, ground_truth_series])
         y_min, y_max = combined_series.min().min(), combined_series.max().max()
         y_range = y_max - y_min
         y_padding = y_range * 0.1
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
+         # Set x-axis limits to match the exact range of the context and forecast periods
+        ax.set_xlim(context_series.index[0], smoothed_forecast_series.index[-1])
 
-        # Set x-axis limits to match the exact range of the context and forecast periods
-        ax.set_xlim(context_start_idx, forecast_end_idx)
-
-        # Format x-axis
-        plt.xticks(rotation=60)
+        # Format the x-axis to show hours and minutes
         ax.xaxis.set_major_formatter(date_formatter)
-        ax.set_title(forecast.item_id)
 
-        # Add legend only to the first subplot
-        if idx == 0:
-            ax.legend()
+        # Add a legend
+        ax.legend()
 
-    plt.gcf().tight_layout()
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
     # Load and plot fine-tuned predictions
     forecasts, tss = load_forecasts('pickle/tuned_forecasts_tss.pkl')
-    plot_time_series(forecasts, tss, context_length=960, prediction_length=360, max_samples=9)
+    plot_time_series(forecasts, tss, context_length=960, prediction_length=360, max_samples=16)
     print('done')
