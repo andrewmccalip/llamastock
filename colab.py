@@ -385,7 +385,20 @@ def load_pickle(zip_file_path, extract_to_path='pickle/'):
     return datasets, file_size
 
 
-
+def save_and_push_to_github(commit_message="Auto-generated commit after tuning "):
+            try:
+                # Add all changes to the staging area
+                subprocess.run(["git", "add", "."], check=True)
+                
+                # Commit the changes
+                subprocess.run(["git", "commit", "-m", commit_message], check=True)
+                
+                # Push the changes to the remote repository
+                subprocess.run(["git", "push"], check=True)
+                
+                print("Changes have been successfully pushed to the GitHub repository.")
+            except subprocess.CalledProcessError as e:
+                print(f"An error occurred while trying to push to GitHub: {e}")
 
 
 
@@ -406,13 +419,13 @@ if __name__ == "__main__":
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
     
-    mode = 'predict'
+    mode = 'test'
    
    
     if mode == 'train':
         # Perform training operations
         print("Training mode selected.")
-        finetune(datasets, val_data,max_epochs=500)  #the big call
+        finetune(datasets, val_data,max_epochs=3)  #the big call
    
 
     
@@ -438,3 +451,11 @@ if __name__ == "__main__":
         with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
             pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
             print("Forecasts and time series have been saved to 'pickle/tuned_forecasts_tss.pkl'")
+
+            # INSERT_YOUR_CODE
+            import subprocess
+
+       
+
+    if mode == 'test':  # Example usage
+        save_and_push_to_github("Auto-generated commit with forecasts and time series data")
