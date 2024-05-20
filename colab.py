@@ -423,7 +423,7 @@ if __name__ == "__main__":
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
     
-    mode = 'all'
+    mode = 'predict'
    
    
     if mode in ['train', 'all']:
@@ -436,7 +436,7 @@ if __name__ == "__main__":
     if mode in ['predict', 'all']:
         #######Steo 3:Forcast with fine tuned model 
     # Path to the fine-tuned checkpoint
-        checkpoint_path = 'lightning_logs/version_35-120min_context/checkpoints/epoch=1-step=100.ckpt'
+        checkpoint_path = 'lightning_logs/version_36/checkpoints/epoch=438-step=21950.ckpt'
         max_series = 9  # Set the maximum number of series to forecast
         forecasts, tss = load_checkpoint_and_forecast(
             checkpoint_path=checkpoint_path,
