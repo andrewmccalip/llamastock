@@ -451,13 +451,13 @@ if __name__ == "__main__":
 
         #####Step 4: save the forecasts (time series) in their own picke for for further plotting in data_review.py 
         # Save the forecasts and tss to a pickle file in a folder called pickle
-        os.makedirs('pickle', exist_ok=True)
-        with open('pickle/tuned_forecasts_tss.pkl', 'wb') as f:
+        checkpoint_dir = os.path.dirname(checkpoint_path)
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        with open(os.path.join(checkpoint_dir, 'tuned_forecasts_tss.pkl'), 'wb') as f:
             pickle.dump({'forecasts': forecasts, 'tss': tss}, f)
-            print("Forecasts and time series have been saved to 'pickle/tuned_forecasts_tss.pkl'")
+            print(f"Forecasts and time series have been saved to '{os.path.join(checkpoint_dir, 'tuned_forecasts_tss.pkl')}'")
 
-            # INSERT_YOUR_CODE
-            import subprocess
+        
 
        
 
