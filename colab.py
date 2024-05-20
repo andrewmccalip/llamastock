@@ -420,7 +420,7 @@ if __name__ == "__main__":
     datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
     #datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
     #datasets, file_size = load_pickle('pickle/fake_waves.zip', 'pickle/')
-    datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
+    datasets, val_data = split_train_validation(datasets, validation_ratio=0.3)
 
     
     mode = 'predict'
