@@ -34,9 +34,7 @@ sys.path.append(os.path.abspath('./lag-llama'))
 from lag_llama.gluon.estimator import LagLlamaEstimator
 from lag_llama.gluon.estimator import ValidationSplitSampler
 
-context_length = 950  # 600 minutes (10 hours)
-prediction_length = 120  # 360 minutes (6 hours)
-num_parallel_samples = 10  # Number of sample paths to generate
+
 
 
 def initialize():
@@ -414,8 +412,13 @@ if __name__ == "__main__":
     forecasts = None
     tss = None
 
-    #datasets, file_size = load_pickle('pickle/es-10year-1min.zip', 'pickle/')
-    datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
+    context_length = 950  # 600 minutes (10 hours)
+    prediction_length = 120  #  starts at 8am, goes to 10am 
+    num_parallel_samples = 10  # Number of sample paths to generate
+    max_epochs = 500
+
+    datasets, file_size = load_pickle('pickle/es-10yr-1min.zip', 'pickle/')
+    #datasets, file_size = load_pickle('pickle/es-6month-1min.zip', 'pickle/')
     #datasets, file_size = load_pickle('pickle/fake_waves.zip', 'pickle/')
     datasets, val_data = split_train_validation(datasets, validation_ratio=0.2)
 
@@ -426,7 +429,7 @@ if __name__ == "__main__":
     if mode in ['train', 'all']:
         # Perform training operations
         print("Training mode selected.")
-        finetune(datasets, val_data,max_epochs=3)  #the big call
+        finetune(datasets, val_data,max_epochs=max_epochs)  #the big call
    
 
     
@@ -459,4 +462,6 @@ if __name__ == "__main__":
        
 
     if mode in ['commit', 'all']:
-        save_and_push_to_github("Auto-generated commit with forecasts and time series data")
+        checkpoint_name = os.path.basename(checkpoint_path)
+        commit_message = f"Auto-generated commit with forecasts from checkpoint {checkpoint_name}"
+        save_and_push_to_github(commit_message)
