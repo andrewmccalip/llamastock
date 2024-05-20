@@ -436,7 +436,7 @@ if __name__ == "__main__":
     if mode in ['predict', 'all']:
         #######Steo 3:Forcast with fine tuned model 
     # Path to the fine-tuned checkpoint
-        checkpoint_path = 'lightning_logs/version_36/checkpoints/epoch=438-step=21950.ckpt'
+        checkpoint_path = 'lightning_logs/version_37/checkpoints/epoch=388-step=19450.ckpt'
         max_series = 9  # Set the maximum number of series to forecast
         forecasts, tss = load_checkpoint_and_forecast(
             checkpoint_path=checkpoint_path,
